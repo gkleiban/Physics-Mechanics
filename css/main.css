@@ -1,0 +1,294 @@
+/* Undergraduate Physics Interactive Simulator - Main styles */
+
+:root {
+  --color-bg: #1a1d23;
+  --color-surface: #252830;
+  --color-border: #3d424d;
+  --color-text: #e8eaed;
+  --color-text-muted: #9aa0a6;
+  --color-accent: #7cafc2;
+  --color-accent-hover: #96c5d6;
+  --font-sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --radius: 8px;
+  --shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.5;
+  color: var(--color-text);
+  background: var(--color-bg);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-header {
+  padding: 1rem 1.5rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.app-header h1 {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.5rem;
+  font-weight: 600;
+}
+
+.tagline {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.app-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 280px;
+  grid-template-rows: auto 1fr;
+  grid-template-areas:
+    "simulation controls"
+    "graph      controls";
+  gap: 1rem;
+  padding: 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+@media (max-width: 900px) {
+  .app-main {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto auto auto;
+    grid-template-areas:
+      "simulation"
+      "controls"
+      "graph";
+  }
+}
+
+.simulation-section {
+  grid-area: simulation;
+}
+
+.canvas-container {
+  position: relative;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+}
+
+#sim-canvas {
+  display: block;
+  width: 100%;
+  max-width: 800px;
+  height: auto;
+  max-height: 500px;
+}
+
+.canvas-overlay {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  max-width: 800px;
+  max-height: 500px;
+  pointer-events: none;
+}
+
+.controls-section {
+  grid-area: controls;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+  height: fit-content;
+}
+
+.controls-section h2,
+.graph-section h2 {
+  margin: 0 0 0.75rem 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.controls-panel {
+  margin-bottom: 1rem;
+}
+
+.control-row {
+  margin-bottom: 0.75rem;
+}
+
+.control-row:last-child {
+  margin-bottom: 0;
+}
+
+.control-label {
+  display: block;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  margin-bottom: 0.25rem;
+}
+
+.control-input-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.control-input-wrap input[type="range"] {
+  flex: 1;
+  min-width: 80px;
+}
+
+.control-input-wrap input[type="number"] {
+  width: 5rem;
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+}
+
+.control-input-wrap select {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--color-text);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  min-width: 6rem;
+}
+
+.control-value {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  min-width: 3rem;
+}
+
+.control-derived {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.controls-placeholder {
+  margin: 0;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+}
+
+.sim-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.sim-actions button {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  color: var(--color-bg);
+  background: var(--color-accent);
+  border: none;
+  border-radius: var(--radius);
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.sim-actions button:hover {
+  background: var(--color-accent-hover);
+}
+
+.sim-actions button:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.graph-section {
+  grid-area: graph;
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  padding: 1rem;
+  border: 1px solid var(--color-border);
+}
+
+.graph-container {
+  position: relative;
+  height: 280px;
+}
+
+.graph-container + .graph-container {
+  margin-top: 1rem;
+}
+
+#graph-canvas,
+#graph-canvas-velocity {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+.data-table-container {
+  margin-top: 0.75rem;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: auto;
+  max-height: 240px;
+  background: var(--color-bg);
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.data-table thead th {
+  position: sticky;
+  top: 0;
+  background: var(--color-surface);
+  color: var(--color-text-muted);
+  text-align: left;
+  padding: 0.5rem 0.6rem;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.data-table tbody td {
+  padding: 0.45rem 0.6rem;
+  border-bottom: 1px solid rgba(61, 66, 77, 0.5);
+  white-space: nowrap;
+  color: var(--color-text);
+}
+
+.data-table tbody tr:nth-child(even) td {
+  background: rgba(37, 40, 48, 0.25);
+}
+
+.app-footer {
+  padding: 0.75rem 1.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  border-top: 1px solid var(--color-border);
+}
+
+.app-footer p {
+  margin: 0;
+}

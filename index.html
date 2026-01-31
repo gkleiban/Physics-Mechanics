@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Undergraduate Physics Interactive Simulator</title>
+  <link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+  <header class="app-header">
+    <h1>Undergraduate Physics Interactive Simulator</h1>
+    <p class="tagline">Real-time mechanics simulations</p>
+  </header>
+
+  <main class="app-main">
+    <section class="simulation-section" aria-label="Simulation view">
+      <div class="canvas-container">
+        <canvas id="sim-canvas" width="800" height="500" aria-label="Physics simulation canvas"></canvas>
+        <canvas id="sim-canvas-overlay" width="800" height="500" class="canvas-overlay" aria-hidden="true"></canvas>
+      </div>
+    </section>
+
+    <aside class="controls-section" aria-label="Simulation controls">
+      <h2>Controls</h2>
+      <div id="controls-panel" class="controls-panel">
+        <!-- Controls injected by JS per simulation -->
+        <p class="controls-placeholder">Select a simulation to view controls.</p>
+      </div>
+      <div class="sim-actions">
+        <button type="button" id="btn-run" aria-label="Run simulation">Run</button>
+        <button type="button" id="btn-reset" aria-label="Reset simulation">Reset</button>
+        <button type="button" id="btn-step" aria-label="Advance one frame">Step</button>
+      </div>
+    </aside>
+
+    <section class="graph-section" aria-label="Real-time graphs">
+      <h2>Graphs</h2>
+      <div class="graph-container">
+        <canvas id="graph-canvas" aria-label="Real-time data graph"></canvas>
+      </div>
+      <div class="graph-container">
+        <canvas id="graph-canvas-velocity" aria-label="Velocity vs time graph"></canvas>
+      </div>
+      <h2>Data</h2>
+      <div class="data-table-container" aria-label="Simulation data table">
+        <table class="data-table" id="data-table">
+          <thead>
+            <tr>
+              <th scope="col">Time (s)</th>
+              <th scope="col">Position (m)</th>
+              <th scope="col">Velocity (m/s)</th>
+              <th scope="col">Acceleration (m/s²)</th>
+            </tr>
+          </thead>
+          <tbody id="data-table-body">
+            <!-- Rows appended by JS while sim runs -->
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <footer class="app-footer">
+    <p>Browser-based physics simulations · Matter.js · Chart.js</p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/matter-js@0.19.0/build/matter.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.6/dist/chart.umd.min.js"></script>
+  <script type="module" src="js/main.js?v=1"></script>
+</body>
+</html>
