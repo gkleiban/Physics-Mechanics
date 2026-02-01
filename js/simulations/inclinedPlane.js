@@ -24,9 +24,14 @@ export const PX_PER_M = 100;
 
 export const name = 'Inclined plane';
 
+function numOr(value, fallback) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
 function computeS0MetersFromControlValues(values) {
-  const startPosition = Number(values?.startPosition) ?? 0; // % from high end
-  const originPosition = Number(values?.originPosition) ?? 0; // % from high end
+  const startPosition = numOr(values?.startPosition, 0); // % from high end
+  const originPosition = numOr(values?.originPosition, 0); // % from high end
   const positiveDirection = values?.positiveDirection === 'up' ? 'up' : 'down';
 
   const slopeLengthM = (SLOPE_WIDTH / PX_PER_M);
@@ -38,9 +43,9 @@ function computeS0MetersFromControlValues(values) {
 }
 
 export const controlDefs = [
-  { id: 'angle', label: 'Incline angle', type: 'range', min: 5, max: 45, step: 1, value: 20, unit: '°' },
+  { id: 'angle', label: 'Incline angle', type: 'range', min: 0, max: 90, step: 1, value: 20, unit: '°' },
   { id: 'mass', label: 'Mass', type: 'number', min: 0.5, max: 20, step: 0.5, value: 2, unit: ' kg' },
-  { id: 'friction', label: 'Friction (μ)', type: 'range', min: 0, max: 0.8, step: 0.05, value: 0.2, unit: '' },
+  { id: 'friction', label: 'Friction (μ)', type: 'range', min: 0, max: 0.8, step: 0.05, value: 0, unit: '' },
   { id: 'gravity', label: 'Gravity', type: 'range', min: 2, max: 15, step: 0.1, value: 9.8, unit: ' m/s²' },
   { id: 'initialSpeed', label: 'Initial speed', type: 'range', min: 0, max: 10, step: 0.1, value: 0, unit: ' m/s' },
   {
@@ -113,15 +118,15 @@ export function createWorld(engine, params) {
   const w = canvas?.width ?? 800;
   const h = canvas?.height ?? 500;
 
-  const angleDeg = Number(params.angle) || 20;
+  const angleDeg = numOr(params.angle, 20);
   const angleRad = (angleDeg * Math.PI) / 180; // slope down to the right (high end top-left)
-  const mass = Number(params.mass) || 2;
-  const friction = Number(params.friction) ?? 0.2;
-  const gravityMps2 = Number(params.gravity) ?? 9.8; // m/s²
-  const initialSpeed = Math.max(0, Number(params.initialSpeed) ?? 0);
+  const mass = numOr(params.mass, 2);
+  const friction = numOr(params.friction, 0);
+  const gravityMps2 = numOr(params.gravity, 9.8); // m/s²
+  const initialSpeed = Math.max(0, numOr(params.initialSpeed, 0));
   const initialVelocityDirection = params.initialVelocityDirection === 'up' ? 'up' : 'down';
-  const startPosition = Number(params.startPosition) ?? 10; // % from high end
-  const originPosition = Number(params.originPosition) ?? 0;
+  const startPosition = numOr(params.startPosition, 10); // % from high end
+  const originPosition = numOr(params.originPosition, 0);
   const positiveDirection = params.positiveDirection === 'up' ? 'up' : 'down';
 
   // Kinematics mode: disable engine gravity and collision-driven motion for the block.
@@ -131,8 +136,24 @@ export function createWorld(engine, params) {
   engine.world.gravity.scale = 0;
 
   // Slope: long rectangle rotated so high end is top-left, low end bottom-right
-  const slopeCenterX = w / 2;
-  const slopeCenterY = h - 100;
+  const slopeDirX = Math.cos(angleRad);
+  const slopeDirY = Math.sin(angleRad);
+
+  // Clamp the ramp so its endpoints stay inside the canvas (helps for 0–90°).
+  const halfLen = SLOPE_WIDTH / 2;
+  const pad = 40;
+  const padX = Math.min(pad, Math.max(0, (w - 2 * halfLen * Math.abs(slopeDirX)) / 2));
+  const padY = Math.min(pad, Math.max(0, (h - 2 * halfLen * Math.abs(slopeDirY)) / 2));
+
+  const minCenterX = padX + halfLen * Math.abs(slopeDirX);
+  const maxCenterX = (w - padX) - halfLen * Math.abs(slopeDirX);
+  const minCenterY = padY + halfLen * Math.abs(slopeDirY);
+  const maxCenterY = (h - padY) - halfLen * Math.abs(slopeDirY);
+
+  const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
+
+  const slopeCenterX = clamp(w / 2, minCenterX, maxCenterX);
+  const slopeCenterY = clamp(h - 100, minCenterY, maxCenterY);
   const slope = Matter.Bodies.rectangle(slopeCenterX, slopeCenterY, SLOPE_WIDTH, SLOPE_HEIGHT, {
     isStatic: true,
     angle: angleRad,
@@ -142,8 +163,6 @@ export function createWorld(engine, params) {
   });
 
   // Slope direction (down the ramp). In Matter.js y increases downward.
-  const slopeDirX = Math.cos(angleRad);
-  const slopeDirY = Math.sin(angleRad);
   // "Up" normal = out of top surface = toward smaller y. Rotated local (0,-1) => (sin(θ), -cos(θ))
   const normalX = Math.sin(angleRad);
   const normalY = -Math.cos(angleRad);
@@ -221,6 +240,7 @@ function computeDownKinematicsAtTime({ u0, v0Down, theta, g, mu }, tSeconds) {
   const t = Math.max(0, Number(tSeconds) || 0);
   const gSin = g * Math.sin(theta);
   const muGCos = mu * g * Math.cos(theta);
+  const EPS = 1e-12;
 
   // If starting from rest, include a simple static-friction "stick" condition.
   if (v0Down === 0) {
@@ -234,6 +254,10 @@ function computeDownKinematicsAtTime({ u0, v0Down, theta, g, mu }, tSeconds) {
   // Moving down initially
   if (v0Down > 0) {
     const aDown = gSin - muGCos;
+    // Pure constant-velocity case (e.g. θ=0, μ=0)
+    if (Math.abs(aDown) < EPS) {
+      return { u: u0 + v0Down * t, vDown: v0Down, aDown: 0 };
+    }
     // If friction is larger than the downslope gravity component, the block decelerates to rest.
     if (aDown <= 0) {
       const tStop = v0Down / (-aDown);
@@ -253,7 +277,11 @@ function computeDownKinematicsAtTime({ u0, v0Down, theta, g, mu }, tSeconds) {
 
   // Moving up initially (v0Down < 0): gravity + friction both act down the ramp.
   const aUpPhase = gSin + muGCos; // always >= 0
-  const tTurn = -v0Down / (aUpPhase || 1e-9);
+  // Pure constant-velocity case (e.g. θ=0, μ=0)
+  if (Math.abs(aUpPhase) < EPS) {
+    return { u: u0 + v0Down * t, vDown: v0Down, aDown: 0 };
+  }
+  const tTurn = -v0Down / aUpPhase;
   if (t <= tTurn) {
     return {
       u: u0 + v0Down * t + 0.5 * aUpPhase * t * t,
@@ -303,11 +331,11 @@ function computeAxisKinematicsAtTime(worldState, tSeconds) {
 export function applyLiveParams(worldState, controlValues) {
   if (!worldState?.refPoint || !worldState?.slopeDir || !worldState?.normal || !worldState?.box) return;
 
-  const originPosition = Number(controlValues?.originPosition) ?? 0;
+  const originPosition = numOr(controlValues?.originPosition, 0);
   const positiveDirection = controlValues?.positiveDirection === 'up' ? 'up' : 'down';
-  const friction = Number(controlValues?.friction) ?? 0.2;
-  const gravityMps2 = Number(controlValues?.gravity) ?? 9.8;
-  const initialSpeed = Math.max(0, Number(controlValues?.initialSpeed) ?? 0);
+  const friction = numOr(controlValues?.friction, 0);
+  const gravityMps2 = numOr(controlValues?.gravity, 9.8);
+  const initialSpeed = Math.max(0, numOr(controlValues?.initialSpeed, 0));
   const initialVelocityDirection = controlValues?.initialVelocityDirection === 'up' ? 'up' : 'down';
 
   const slopeLengthPx = Number(worldState.slopeLength ?? SLOPE_WIDTH);
