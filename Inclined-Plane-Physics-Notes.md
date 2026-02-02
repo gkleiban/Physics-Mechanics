@@ -41,47 +41,62 @@ The gravitational component **along the ramp (down-slope)** is:
 a_{\text{down, no friction}} = g \sin\theta
 \]
 
-With a kinetic friction coefficient \(\mu\), friction magnitude is \(\mu N = \mu mg\cos\theta\) opposing motion, giving:
+With a kinetic friction coefficient \(\mu\), friction magnitude is \(\mu N = \mu mg\cos\theta\) opposing motion. **Because friction opposes motion, the acceleration depends on the direction of motion:**
 
 \[
-a_{\text{down}} = g(\sin\theta - \mu\cos\theta)
+a_{\text{down}} =
+\begin{cases}
+g(\sin\theta - \mu\cos\theta) & \text{if moving down the ramp} \\
+g(\sin\theta + \mu\cos\theta) & \text{if moving up the ramp}
+\end{cases}
 \]
 
-### Constant-acceleration kinematics
+### Coordinate definitions used in the UI
 
-For the “intro physics” version of this simulation, we use constant-acceleration 1D motion along the ramp:
+The app maintains an internal “down the ramp” coordinate \(u\) (positive down-slope) for the physics logic, and then maps it to the user’s chosen axis:
+
+- **Origin position along ramp**: defines where \(s=0\) lies on the ramp.
+- **Positive direction**: chooses whether \(+s\) is **down** the ramp or **up** the ramp.
+- **Initial speed** and **initial velocity direction**: set the magnitude and “up vs down” direction of the initial velocity.
+
+All displayed values \((s, v, a)\) in the **graphs** and **table** follow the user’s positive-direction convention.
+
+### Piecewise kinematics (what the code implements)
+
+Because \(a_{\text{down}}\) depends on the direction of motion, the motion can be piecewise even with constant \(\theta, g, \mu\):
+
+- If launched **down** the ramp, it can accelerate down-slope, or (if friction is large enough) decelerate to rest.
+- If launched **up** the ramp, it decelerates to rest, and then either:
+  - **sticks** (if the incline is not steep enough to overcome friction), or
+  - **reverses** and accelerates down-slope.
+
+The analytic 1D formulas used for each constant-acceleration segment are the standard:
 
 \[
-s(t) = s_0 + v_0 t + \tfrac12 a t^2
-\]
-\[
-v(t) = v_0 + a t
-\]
-\[
-a(t) = a \quad (\text{constant})
+u(t) = u_0 + v_0 t + \tfrac12 a t^2,\qquad v(t) = v_0 + a t
 \]
 
-In the UI:
+### Static “stick” condition (from rest)
 
-- The user defines a **coordinate origin** on the ramp.
-- The user selects whether **positive direction** is “down the ramp” or “up the ramp”.
-- The reported \(s, v, a\) adopt those sign conventions.
-
-### Static “no motion” condition (from rest)
-
-If the block starts at rest and:
+If the block starts at rest \((v_0 = 0)\) and:
 
 \[
 g(\sin\theta - \mu\cos\theta) \le 0
 \]
 
-then the down-slope acceleration would be non-positive, so (for this simple model) we treat it as **no sliding**:
+then the down-slope component of gravity is not enough to overcome friction, so we treat it as **no sliding**:
 
 - \(a = 0\)
 - \(v(t) = 0\)
 - \(s(t) = s_0\)
 
-This is implemented as a clamp on the down-slope acceleration.
+### Zero-acceleration edge case (e.g. \(\theta=0^\circ\), \(\mu=0\))
+
+If the net acceleration along the ramp evaluates to ~0 (within a small epsilon), the motion is treated as **constant velocity**:
+
+- \(u(t) = u_0 + v_0 t\)
+- \(v(t) = v_0\)
+- \(a(t) = 0\)
 
 ---
 
@@ -124,14 +139,14 @@ Even if the underlying position were close, finite differences + non-uniform sam
 
 ### A) Switch to an analytical 1D kinematics model (for this simulation)
 
-To make the inclined plane match the exact undergraduate theory (constant acceleration along the ramp), the simulation now uses:
+To match undergraduate theory cleanly (without rigid-body contact solver artifacts), the simulation uses:
 
-- the analytical expressions for \(s(t)\), \(v(t)\), and constant \(a\),
-- and moves the block visually along the ramp to match \(s(t)\).
+- a **piecewise analytical** solution for \(s(t)\), \(v(t)\), and \(a(t)\) along the ramp (to handle initial velocity up/down and friction correctly),
+- and moves the block visually along the ramp to match the computed position.
 
 This avoids rigid-body contact/friction solver artifacts and provides a clean educational reference.
 
-### B) Make the table match theory timestamps exactly
+### B) Make the table match theory timestamps exactly (and start at \(t=0\))
 
 A subtle but important comparison issue:
 
@@ -143,10 +158,20 @@ If the table row was computed at \(t = 0.308306...\) but displayed as `0.308`, t
 
 Resolution:
 
+- The data table is explicitly **seeded with a \(t=0.000\)** row.
 - Table rows are sampled at **exact multiples of 0.1 s** (0.100, 0.200, 0.300, …).
 - For each row, \(s\) and \(v\) are evaluated at that **exact displayed time**.
 
 This makes row-by-row validation against Excel straightforward and eliminates “apparent drift”.
+
+### C) Graphs reflect the same sampled physics
+
+The UI includes two real-time graphs:
+
+- **Position vs time** (meters)
+- **Velocity vs time** (m/s)
+
+Both graphs are also **seeded at \(t=0\)** so traces start from the initial conditions.
 
 ### C) Starting position + origin conventions are explicit and visible
 
@@ -165,7 +190,7 @@ To make the coordinate definition unambiguous:
 This inclined plane is currently designed as a **theory-matching kinematics demo**:
 
 - It is not intended to be a full rigid-body friction/contact “emergent” simulation.
-- It prioritizes matching undergraduate closed-form results (constant \(a\)).
+- It prioritizes matching undergraduate closed-form results (piecewise constant acceleration with kinetic friction).
 
 If/when we later want a “full Matter.js” version, we can add a mode switch:
 

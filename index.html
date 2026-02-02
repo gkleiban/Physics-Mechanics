@@ -22,6 +22,10 @@
 
     <aside class="controls-section" aria-label="Simulation controls">
       <h2>Controls</h2>
+      <div class="simulation-picker">
+        <label for="simulation-select" class="control-label">Simulation</label>
+        <select id="simulation-select" aria-label="Select simulation"></select>
+      </div>
       <div id="controls-panel" class="controls-panel">
         <!-- Controls injected by JS per simulation -->
         <p class="controls-placeholder">Select a simulation to view controls.</p>
@@ -44,14 +48,7 @@
       <h2>Data</h2>
       <div class="data-table-container" aria-label="Simulation data table">
         <table class="data-table" id="data-table">
-          <thead>
-            <tr>
-              <th scope="col">Time (s)</th>
-              <th scope="col">Position (m)</th>
-              <th scope="col">Velocity (m/s)</th>
-              <th scope="col">Acceleration (m/s²)</th>
-            </tr>
-          </thead>
+          <thead id="data-table-head"></thead>
           <tbody id="data-table-body">
             <!-- Rows appended by JS while sim runs -->
           </tbody>

@@ -93,6 +93,15 @@ export const velocityGraphDatasetDefs = [
   { id: 'v', label: 'Velocity along slope', unit: 'm/s' },
 ];
 
+export const tableColumnDefs = [
+  { key: 't', label: 'Time (s)', digits: 3 },
+  { key: 's', label: 'Position (m)', digits: 4 },
+  { key: 'v', label: 'Velocity (m/s)', digits: 4 },
+  { key: 'a', label: 'Acceleration (m/s²)', digits: 4 },
+];
+
+export const rebuildOnChangeIds = ['angle'];
+
 const BOX_CLEARANCE_PX = 3;
 
 /**
@@ -536,4 +545,8 @@ export function drawOriginAndAxis(ctx, worldState, controlValues = null) {
   ctx.fillText('+', plusX, plusY);
 
   ctx.restore();
+}
+
+export function drawOverlay(ctx, worldState, controlValues = null) {
+  drawOriginAndAxis(ctx, worldState, controlValues);
 }

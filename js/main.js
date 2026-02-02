@@ -7,6 +7,7 @@ import { createRunner } from './runner.js';
 import { createControlPanel } from './controls.js';
 import { createGraphManager } from './graphManager.js';
 import * as inclinedPlane from './simulations/inclinedPlane.js';
+import * as projectileMotion from './simulations/projectileMotion.js';
 
 const Matter = window.Matter;
 const Chart = window.Chart;
@@ -21,6 +22,13 @@ if (!Matter || !Chart) {
 let getResetParams = () => ({});
 /** Current simulation world state (bodies + refs for graph). Set by simulation createWorld. */
 let currentWorldState = null;
+/** Current simulation module (inclinedPlane, projectileMotion, etc.) */
+let currentSim = inclinedPlane;
+
+const SIMS = [
+  { id: 'inclinedPlane', label: 'Inclined plane', sim: inclinedPlane },
+  { id: 'projectileMotion', label: 'Projectile motion', sim: projectileMotion },
+];
 
 /**
  * Initialize the simulation canvas, engine, render, and runner.
@@ -49,7 +57,7 @@ function initSimulationCanvas() {
     onReset(engine) {
       Matter.World.clear(engine.world);
       if (typeof getResetParams === 'function') {
-        currentWorldState = inclinedPlane.createWorld(engine, getResetParams());
+        currentWorldState = currentSim.createWorld(engine, getResetParams());
       }
     },
     startPaused: true,
@@ -66,82 +74,147 @@ function initControlsAndGraph(engine, runner) {
   const panelEl = document.getElementById('controls-panel');
   const graphCanvas = document.getElementById('graph-canvas');
   const velocityGraphCanvas = document.getElementById('graph-canvas-velocity');
+  const tableHead = document.getElementById('data-table-head');
   const tableBody = document.getElementById('data-table-body');
+  const simSelect = document.getElementById('simulation-select');
   if (!panelEl || !graphCanvas) return null;
+
+  const baseReset = runner.reset.bind(runner);
 
   // These are referenced by the control onChange handler (assigned below).
   let graphManager = null;
   let velocityGraphManager = null;
+  /** @type {ReturnType<typeof createControlPanel> | null} */
+  let controlPanel = null;
+  /** @type {{ key: string, label: string, digits?: number }[]} */
+  let tableColumns = [];
   let simTime = 0;
   let lastSampleMs = 0;
   let nextSampleMs = 100;
 
   let getValues = () => ({});
 
+  function setTableColumns(defs) {
+    tableColumns = Array.isArray(defs) ? defs : [];
+    if (!tableHead) return;
+    tableHead.innerHTML =
+      '<tr>' +
+      tableColumns.map((c) => `<th scope="col">${c.label}</th>`).join('') +
+      '</tr>';
+  }
+
+  function formatCell(value, digits) {
+    const n = Number(value);
+    if (!Number.isFinite(n)) return '';
+    if (typeof digits === 'number') return n.toFixed(digits);
+    return String(n);
+  }
+
+  function appendTableRow(sample) {
+    if (!tableBody) return;
+    const row = document.createElement('tr');
+    row.innerHTML = tableColumns
+      .map((c) => `<td>${formatCell(sample?.[c.key], c.digits)}</td>`)
+      .join('');
+    tableBody.appendChild(row);
+  }
+
   function seedT0() {
     // Ensure state is at t=0 and seed graphs/table so verification is easy.
     if (!currentWorldState) return;
 
-    inclinedPlane.setTime(currentWorldState, 0);
+    currentSim.setTime(currentWorldState, 0);
 
-    const sample = inclinedPlane.getGraphSample(currentWorldState);
+    const sample = currentSim.getGraphSample(currentWorldState);
     graphManager?.appendPoint(0, sample);
     velocityGraphManager?.appendPoint(0, sample);
 
     if (tableBody) {
-      const kin = inclinedPlane.getKinematicsAtTime(currentWorldState, 0);
-      const row = document.createElement('tr');
-      row.innerHTML =
-        `<td>${(0).toFixed(3)}</td>` +
-        `<td>${kin.s.toFixed(4)}</td>` +
-        `<td>${kin.v.toFixed(4)}</td>` +
-        `<td>${kin.a.toFixed(4)}</td>`;
-      tableBody.appendChild(row);
+      const kin = currentSim.getKinematicsAtTime(currentWorldState, 0);
+      appendTableRow(kin);
     }
   }
 
   function handleControlChange(id) {
-    // Angle change: rebuild world so ramp and everything update in real time
-    if (id === 'angle') {
+    const rebuildIds = currentSim.rebuildOnChangeIds ?? [];
+    if (Array.isArray(rebuildIds) && rebuildIds.includes(id)) {
       runner.reset();
       return;
     }
 
     // Live-updating parameters that affect initial condition and/or coordinate definition:
-    if (
-      id === 'startPosition' ||
-      id === 'originPosition' ||
-      id === 'positiveDirection' ||
-      id === 'friction' ||
-      id === 'gravity' ||
-      id === 'initialSpeed' ||
-      id === 'initialVelocityDirection'
-    ) {
-      if (graphManager) graphManager.clear();
-      if (velocityGraphManager) velocityGraphManager.clear();
-      simTime = 0;
-      lastSampleMs = 0;
-      nextSampleMs = 100;
-      if (tableBody) tableBody.innerHTML = '';
+    if (graphManager) graphManager.clear();
+    if (velocityGraphManager) velocityGraphManager.clear();
+    simTime = 0;
+    lastSampleMs = 0;
+    nextSampleMs = 100;
+    if (tableBody) tableBody.innerHTML = '';
 
-      if (currentWorldState) {
-        inclinedPlane.applyLiveParams(currentWorldState, getValues());
-      }
+    if (currentWorldState && typeof currentSim.applyLiveParams === 'function') {
+      currentSim.applyLiveParams(currentWorldState, getValues());
+    }
 
-      seedT0();
+    seedT0();
+  }
+
+  function buildGraphsForSim(sim) {
+    if (graphManager?.chart) graphManager.chart.destroy();
+    if (velocityGraphManager?.chart) velocityGraphManager.chart.destroy();
+
+    graphManager = createGraphManager(graphCanvas, {
+      xLabel: 'Time (s)',
+      yLabel: 'Position (m)',
+      datasets: sim.graphDatasetDefs,
+      maxPoints: 400,
+    });
+
+    if (velocityGraphCanvas) {
+      velocityGraphManager = createGraphManager(velocityGraphCanvas, {
+        xLabel: 'Time (s)',
+        yLabel: 'Velocity (m/s)',
+        datasets: sim.velocityGraphDatasetDefs,
+        maxPoints: 400,
+      });
     }
   }
 
-  const controlPanel = createControlPanel(panelEl, inclinedPlane.controlDefs, {
-    onChange(id) {
-      handleControlChange(id);
-    },
-  });
+  function loadSimulation(simId) {
+    const entry = SIMS.find((s) => s.id === simId) ?? SIMS[0];
+    currentSim = entry.sim;
 
-  getValues = () => controlPanel.getValues();
-  getResetParams = () => controlPanel.getValues();
-  currentWorldState = inclinedPlane.createWorld(engine, controlPanel.getValues());
-  inclinedPlane.applyLiveParams(currentWorldState, controlPanel.getValues());
+    // Rebuild controls for the selected simulation.
+    controlPanel = createControlPanel(panelEl, currentSim.controlDefs, {
+      onChange(id) {
+        handleControlChange(id);
+      },
+    });
+
+    getValues = () => controlPanel.getValues();
+    getResetParams = () => controlPanel.getValues();
+
+    // Rebuild graphs + table columns for the selected simulation.
+    buildGraphsForSim(currentSim);
+    setTableColumns(currentSim.tableColumnDefs ?? []);
+
+    // Reset state and rebuild world at t=0.
+    simTime = 0;
+    lastSampleMs = 0;
+    nextSampleMs = 100;
+    if (tableBody) tableBody.innerHTML = '';
+
+    baseReset();
+    seedT0();
+  }
+
+  // Populate simulation selector.
+  if (simSelect) {
+    simSelect.innerHTML = SIMS.map((s) => `<option value="${s.id}">${s.label}</option>`).join('');
+    simSelect.value = SIMS[0].id;
+    simSelect.addEventListener('change', () => loadSimulation(simSelect.value));
+  }
+
+  // Load default simulation on startup.
+  loadSimulation(simSelect?.value ?? SIMS[0].id);
 
   // Overlay: draw origin "0" and positive-direction arrow; use live control values for origin and direction
   const overlayCanvas = document.getElementById('sim-canvas-overlay');
@@ -149,41 +222,24 @@ function initControlsAndGraph(engine, runner) {
     const overlayCtx = overlayCanvas.getContext('2d');
     function drawOverlay() {
       overlayCtx.clearRect(0, 0, overlayCanvas.width, overlayCanvas.height);
-      inclinedPlane.drawOriginAndAxis(overlayCtx, currentWorldState, controlPanel.getValues());
+      if (currentWorldState && typeof currentSim.drawOverlay === 'function') {
+        currentSim.drawOverlay(overlayCtx, currentWorldState, controlPanel?.getValues?.() ?? null);
+      }
       requestAnimationFrame(drawOverlay);
     }
     requestAnimationFrame(drawOverlay);
   }
 
-  graphManager = createGraphManager(graphCanvas, {
-    xLabel: 'Time (s)',
-    yLabel: 'Position (m)',
-    datasets: inclinedPlane.graphDatasetDefs,
-    maxPoints: 400,
-  });
-
-  if (velocityGraphCanvas) {
-    velocityGraphManager = createGraphManager(velocityGraphCanvas, {
-      xLabel: 'Time (s)',
-      yLabel: 'Velocity (m/s)',
-      datasets: inclinedPlane.velocityGraphDatasetDefs,
-      maxPoints: 400,
-    });
-  }
-
-  // Seed t=0 for both graphs and the table.
-  seedT0();
-
   // Data table sampling (sample at exact multiples for easy theory comparison)
   const MAX_TABLE_ROWS = 80;
   const SAMPLE_EVERY_MS = 100; // 10 Hz
   Matter.Events.on(engine, 'afterUpdate', (event) => {
-    if (currentWorldState?.box && runner && !runner.isPaused()) {
+    if (currentWorldState && runner && !runner.isPaused()) {
       // Use the engine's actual simulated delta (ms) so time axis is correct.
       simTime += event.delta;
       // Set kinematics to the absolute simulation time (exact) and update the pose.
-      inclinedPlane.setTime(currentWorldState, simTime / 1000);
-      const sample = inclinedPlane.getGraphSample(currentWorldState);
+      currentSim.setTime(currentWorldState, simTime / 1000);
+      const sample = currentSim.getGraphSample(currentWorldState);
       graphManager.appendPoint(simTime / 1000, sample);
       velocityGraphManager?.appendPoint(simTime / 1000, sample);
 
@@ -191,18 +247,8 @@ function initControlsAndGraph(engine, runner) {
         // Sample at exact multiples of SAMPLE_EVERY_MS for easy theory comparison (0.100, 0.200, ...).
         while (simTime >= nextSampleMs) {
           const t = nextSampleMs / 1000;
-          const kin = inclinedPlane.getKinematicsAtTime(currentWorldState, t);
-          const posM = kin.s;
-          const velMps = kin.v;
-          const accMps2 = kin.a;
-
-          const row = document.createElement('tr');
-          row.innerHTML =
-            `<td>${t.toFixed(3)}</td>` +
-            `<td>${posM.toFixed(4)}</td>` +
-            `<td>${velMps.toFixed(4)}</td>` +
-            `<td>${accMps2.toFixed(4)}</td>`;
-          tableBody.appendChild(row);
+          const kin = currentSim.getKinematicsAtTime(currentWorldState, t);
+          appendTableRow(kin);
 
           while (tableBody.rows.length > MAX_TABLE_ROWS) {
             tableBody.deleteRow(0);
@@ -215,7 +261,7 @@ function initControlsAndGraph(engine, runner) {
     }
   });
 
-  const originalReset = runner.reset.bind(runner);
+  const originalReset = baseReset;
   runner.reset = () => {
     graphManager.clear();
     velocityGraphManager?.clear();
