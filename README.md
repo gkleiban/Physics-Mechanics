@@ -34,11 +34,19 @@ Then open the URL shown (e.g. http://localhost:3000).
 | Simulation           | Status   |
 |----------------------|----------|
 | **Inclined plane** (mass sliding) | ✅ Implemented |
-| Projectile motion    | Planned  |
+| **Projectile motion** (point mass, no drag) | ✅ Implemented |
+| **Atwood machine** (ideal pulley, 1D kinematics) | ✅ Implemented |
 | Mass–spring (SHM)    | Planned  |
 | Pendulum             | Planned  |
 | Collisions (1D/2D)   | Planned  |
-| Atwood machine       | Planned  |
+
+## Documentation
+
+Physics and implementation notes (and deferred suggestions) for each simulation:
+
+- **Inclined plane**: `Inclined-Plane-Physics-Notes.md`, `Inclined-Plane-Suggestions.md`
+- **Projectile motion**: `Projectile-Motion-Physics-Notes.md`, `Projectile-Motion-Suggestions.md`
+- **Atwood machine**: `Atwood-Machine-Scope.md`, `Atwood-Machine-Physics-Notes.md`, `Atwood-Machine-Suggestions.md`
 
 ## Adding a new simulation
 
@@ -46,4 +54,4 @@ Then open the URL shown (e.g. http://localhost:3000).
 
 ---
 
-*Steps 1–4 complete. Inclined plane is the first simulation. Next: more simulations or polish.*
+*Inclined plane, projectile motion, and Atwood machine implemented.*

@@ -8,6 +8,7 @@ import { createControlPanel } from './controls.js';
 import { createGraphManager } from './graphManager.js';
 import * as inclinedPlane from './simulations/inclinedPlane.js';
 import * as projectileMotion from './simulations/projectileMotion.js';
+import * as atwoodMachine from './simulations/atwoodMachine.js';
 
 const Matter = window.Matter;
 const Chart = window.Chart;
@@ -28,6 +29,7 @@ let currentSim = inclinedPlane;
 const SIMS = [
   { id: 'inclinedPlane', label: 'Inclined plane', sim: inclinedPlane },
   { id: 'projectileMotion', label: 'Projectile motion', sim: projectileMotion },
+  { id: 'atwoodMachine', label: 'Atwood machine', sim: atwoodMachine },
 ];
 
 /**
@@ -233,15 +235,31 @@ function initControlsAndGraph(engine, runner) {
   // Data table sampling (sample at exact multiples for easy theory comparison)
   const MAX_TABLE_ROWS = 80;
   const SAMPLE_EVERY_MS = 100; // 10 Hz
+  let runButtonUpdater = null;
+  let isStepping = false;
+
   Matter.Events.on(engine, 'afterUpdate', (event) => {
-    if (currentWorldState && runner && !runner.isPaused()) {
+    const shouldAdvance = (currentWorldState && runner && (!runner.isPaused() || isStepping));
+    if (shouldAdvance) {
+      if (isStepping) isStepping = false;
       // Use the engine's actual simulated delta (ms) so time axis is correct.
       simTime += event.delta;
+      const tSec = simTime / 1000;
       // Set kinematics to the absolute simulation time (exact) and update the pose.
-      currentSim.setTime(currentWorldState, simTime / 1000);
+      currentSim.setTime(currentWorldState, tSec);
+      // Stop when simulation defines an end time (e.g. Atwood: one mass reaches the pulley).
+      if (typeof currentSim.getSimulationEndTime === 'function') {
+        const endTime = currentSim.getSimulationEndTime(currentWorldState);
+        if (Number.isFinite(endTime) && tSec >= endTime) {
+          simTime = endTime * 1000;
+          currentSim.setTime(currentWorldState, endTime);
+          runner.pause();
+          runButtonUpdater?.();
+        }
+      }
       const sample = currentSim.getGraphSample(currentWorldState);
-      graphManager.appendPoint(simTime / 1000, sample);
-      velocityGraphManager?.appendPoint(simTime / 1000, sample);
+      graphManager.appendPoint(tSec, sample);
+      velocityGraphManager?.appendPoint(tSec, sample);
 
       if (tableBody) {
         // Sample at exact multiples of SAMPLE_EVERY_MS for easy theory comparison (0.100, 0.200, ...).
@@ -273,15 +291,21 @@ function initControlsAndGraph(engine, runner) {
     seedT0();
   };
 
-  return { controlPanel, graphManager };
+  return {
+    controlPanel,
+    graphManager,
+    setRunButtonUpdater: (fn) => { runButtonUpdater = fn; },
+    setStepping: (v) => { isStepping = v; },
+  };
 }
 
 /**
  * Wire Run/Pause, Reset, and Step buttons to the runner.
- * Run starts the simulation; when running, the button shows Pause. Reset only resets the sim.
+ * Run starts the simulation; when running, the button shows Pause. Reset resets the sim and pauses.
  * @param {ReturnType<createRunner>} runner
+ * @param {{ setRunButtonUpdater?: (fn: () => void) => void, setStepping?: (v: boolean) => void }} [controlsResult]
  */
-function wireButtons(runner) {
+function wireButtons(runner, controlsResult) {
   const btnRun = document.getElementById('btn-run');
   const btnReset = document.getElementById('btn-reset');
   const btnStep = document.getElementById('btn-step');
@@ -295,23 +319,26 @@ function wireButtons(runner) {
     updateRunButtonLabel();
   });
   btnReset?.addEventListener('click', () => {
+    runner.pause();
     runner.reset();
-    // Reset only resets the block/simulation; run state is unchanged
+    updateRunButtonLabel();
   });
   btnStep?.addEventListener('click', () => {
     runner.pause();
+    controlsResult?.setStepping?.(true);
     runner.step();
     updateRunButtonLabel();
   });
 
+  controlsResult?.setRunButtonUpdater?.(updateRunButtonLabel);
   updateRunButtonLabel();
 }
 
 // Run on load
 const sim = initSimulationCanvas();
 if (sim?.engine && sim?.runner) {
-  initControlsAndGraph(sim.engine, sim.runner);
-  wireButtons(sim.runner);
+  const controlsResult = initControlsAndGraph(sim.engine, sim.runner);
+  wireButtons(sim.runner, controlsResult);
 }
 
 // Export for later use by simulations
