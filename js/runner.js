@@ -77,6 +77,10 @@ export function createRunner(engine, render, options = {}) {
     lastTime = 0;
   }
 
+  function resetTiming() {
+    lastTime = 0;
+  }
+
   function isPaused() {
     return paused;
   }
@@ -89,6 +93,7 @@ export function createRunner(engine, render, options = {}) {
     togglePause,
     step,
     reset,
+    resetTiming,
     isPaused,
     getTimeScale: () => timeScale,
   };

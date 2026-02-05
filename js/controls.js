@@ -8,7 +8,7 @@
  * @typedef {Object} ControlDef
  * @property {string} id - Unique id (used in getValue/setValue)
  * @property {string} label - Visible label
- * @property {'range'|'number'|'select'|'checkbox'} type
+ * @property {'range'|'number'|'select'|'checkbox'|'display'} type
  * @property {number} [min] - For range/number
  * @property {number} [max] - For range/number
  * @property {number} [step] - For range/number
@@ -29,6 +29,8 @@
 export function createControlPanel(container, controlDefs, options = {}) {
   const { onChange } = options;
   const inputs = /** @type {Record<string, HTMLInputElement|HTMLSelectElement>} */ ({});
+  /** @type {Array<{ def: { valueText?: (value: unknown, getValues: () => Object) => string }, el: HTMLElement }>} */
+  const displayRefs = [];
 
   container.innerHTML = '';
   container.classList.remove('controls-placeholder');
@@ -128,6 +130,20 @@ export function createControlPanel(container, controlDefs, options = {}) {
         input.addEventListener('change', () => onChange?.(def.id, input.checked));
         break;
       }
+      case 'display': {
+        const displayEl = document.createElement('div');
+        displayEl.className = 'control-display';
+        displayEl.setAttribute('aria-live', 'polite');
+        if (def.label) {
+          label.textContent = def.label;
+          row.appendChild(label);
+        }
+        wrap.appendChild(displayEl);
+        row.appendChild(wrap);
+        container.appendChild(row);
+        displayRefs.push({ def, el: displayEl });
+        continue;
+      }
       default:
         continue;
     }
@@ -178,5 +194,15 @@ export function createControlPanel(container, controlDefs, options = {}) {
     }
   }
 
-  return { getValue, getValues, setValue };
+  function refreshDisplays() {
+    for (const { def, el } of displayRefs) {
+      if (typeof def.valueText === 'function') {
+        el.textContent = def.valueText(undefined, getValues);
+      }
+    }
+  }
+
+  refreshDisplays();
+
+  return { getValue, getValues, setValue, refreshDisplays };
 }

@@ -9,6 +9,7 @@ import { createGraphManager } from './graphManager.js';
 import * as inclinedPlane from './simulations/inclinedPlane.js';
 import * as projectileMotion from './simulations/projectileMotion.js';
 import * as atwoodMachine from './simulations/atwoodMachine.js';
+import * as atwoodIncline from './simulations/atwoodIncline.js';
 
 const Matter = window.Matter;
 const Chart = window.Chart;
@@ -30,6 +31,7 @@ const SIMS = [
   { id: 'inclinedPlane', label: 'Inclined plane', sim: inclinedPlane },
   { id: 'projectileMotion', label: 'Projectile motion', sim: projectileMotion },
   { id: 'atwoodMachine', label: 'Atwood machine', sim: atwoodMachine },
+  { id: 'atwoodIncline', label: 'Atwood on incline', sim: atwoodIncline },
 ];
 
 /**
@@ -79,7 +81,12 @@ function initControlsAndGraph(engine, runner) {
   const tableHead = document.getElementById('data-table-head');
   const tableBody = document.getElementById('data-table-body');
   const simSelect = document.getElementById('simulation-select');
+  const statusEl = document.getElementById('sim-status');
   if (!panelEl || !graphCanvas) return null;
+
+  function setSimStatus(text) {
+    if (statusEl) statusEl.textContent = text;
+  }
 
   const baseReset = runner.reset.bind(runner);
 
@@ -95,6 +102,8 @@ function initControlsAndGraph(engine, runner) {
   let nextSampleMs = 100;
 
   let getValues = () => ({});
+  /** When set, getResetParams uses this s₀ instead of the control value (for origin-change position preservation). */
+  let overrideS0ForReset = null;
 
   function setTableColumns(defs) {
     tableColumns = Array.isArray(defs) ? defs : [];
@@ -138,8 +147,20 @@ function initControlsAndGraph(engine, runner) {
   }
 
   function handleControlChange(id) {
+    controlPanel?.refreshDisplays?.();
+
     const rebuildIds = currentSim.rebuildOnChangeIds ?? [];
     if (Array.isArray(rebuildIds) && rebuildIds.includes(id)) {
+      // When origin changes, pass computed s₀ directly to keep masses at same physical position
+      if (id === 'originPosition' && currentWorldState && typeof currentSim.getS0ForOriginChange === 'function') {
+        overrideS0ForReset = currentSim.getS0ForOriginChange(currentWorldState, getValues().originPosition);
+        controlPanel?.setValue?.('s0', overrideS0ForReset);
+      }
+      // When positive direction changes, negate s₀ so masses stay at same physical position
+      if (id === 'positiveDirection' && currentWorldState && typeof currentSim.getS0ForPositiveDirectionChange === 'function') {
+        overrideS0ForReset = currentSim.getS0ForPositiveDirectionChange(currentWorldState);
+        controlPanel?.setValue?.('s0', overrideS0ForReset);
+      }
       runner.reset();
       return;
     }
@@ -154,6 +175,10 @@ function initControlsAndGraph(engine, runner) {
 
     if (currentWorldState && typeof currentSim.applyLiveParams === 'function') {
       currentSim.applyLiveParams(currentWorldState, getValues());
+    }
+
+    if (typeof runner.resetTiming === 'function') {
+      runner.resetTiming();
     }
 
     seedT0();
@@ -192,7 +217,14 @@ function initControlsAndGraph(engine, runner) {
     });
 
     getValues = () => controlPanel.getValues();
-    getResetParams = () => controlPanel.getValues();
+    getResetParams = () => {
+      const values = controlPanel.getValues();
+      if (overrideS0ForReset != null) {
+        values.s0 = overrideS0ForReset;
+        overrideS0ForReset = null;
+      }
+      return values;
+    };
 
     // Rebuild graphs + table columns for the selected simulation.
     buildGraphsForSim(currentSim);
@@ -206,6 +238,7 @@ function initControlsAndGraph(engine, runner) {
 
     baseReset();
     seedT0();
+    controlPanel?.refreshDisplays?.();
   }
 
   // Populate simulation selector.
@@ -255,6 +288,10 @@ function initControlsAndGraph(engine, runner) {
           currentSim.setTime(currentWorldState, endTime);
           runner.pause();
           runButtonUpdater?.();
+          const reason = typeof currentSim.getSimulationEndReason === 'function'
+            ? currentSim.getSimulationEndReason(currentWorldState)
+            : null;
+          setSimStatus(reason ? `Stopped: ${reason}` : '');
         }
       }
       const sample = currentSim.getGraphSample(currentWorldState);
@@ -281,6 +318,7 @@ function initControlsAndGraph(engine, runner) {
 
   const originalReset = baseReset;
   runner.reset = () => {
+    setSimStatus('');
     graphManager.clear();
     velocityGraphManager?.clear();
     simTime = 0;
@@ -296,6 +334,7 @@ function initControlsAndGraph(engine, runner) {
     graphManager,
     setRunButtonUpdater: (fn) => { runButtonUpdater = fn; },
     setStepping: (v) => { isStepping = v; },
+    setSimStatus,
   };
 }
 
@@ -315,6 +354,7 @@ function wireButtons(runner, controlsResult) {
   }
 
   btnRun?.addEventListener('click', () => {
+    if (runner.isPaused()) controlsResult?.setSimStatus?.('');
     runner.togglePause();
     updateRunButtonLabel();
   });
@@ -325,6 +365,7 @@ function wireButtons(runner, controlsResult) {
   });
   btnStep?.addEventListener('click', () => {
     runner.pause();
+    controlsResult?.setSimStatus?.('');
     controlsResult?.setStepping?.(true);
     runner.step();
     updateRunButtonLabel();

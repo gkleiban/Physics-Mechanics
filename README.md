@@ -36,6 +36,7 @@ Then open the URL shown (e.g. http://localhost:3000).
 | **Inclined plane** (mass sliding) | ✅ Implemented |
 | **Projectile motion** (point mass, no drag) | ✅ Implemented |
 | **Atwood machine** (ideal pulley, 1D kinematics) | ✅ Implemented |
+| **Atwood on incline** (m₁ on ramp, m₂ hanging) | ✅ Implemented |
 | Mass–spring (SHM)    | Planned  |
 | Pendulum             | Planned  |
 | Collisions (1D/2D)   | Planned  |
@@ -47,6 +48,7 @@ Physics and implementation notes (and deferred suggestions) for each simulation:
 - **Inclined plane**: `Inclined-Plane-Physics-Notes.md`, `Inclined-Plane-Suggestions.md`
 - **Projectile motion**: `Projectile-Motion-Physics-Notes.md`, `Projectile-Motion-Suggestions.md`
 - **Atwood machine**: `Atwood-Machine-Scope.md`, `Atwood-Machine-Physics-Notes.md`, `Atwood-Machine-Suggestions.md`
+- **Atwood on incline**: `Atwood-Incline-Scope.md`, `Atwood-Incline-Physics-Notes.md`, `Atwood-Incline-Suggestions.md`
 
 ## Adding a new simulation
 
@@ -54,4 +56,4 @@ Physics and implementation notes (and deferred suggestions) for each simulation:
 
 ---
 
-*Inclined plane, projectile motion, and Atwood machine implemented.*
+*Inclined plane, projectile motion, Atwood machine, and Atwood on incline implemented.*

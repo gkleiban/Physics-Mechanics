@@ -210,6 +210,19 @@ body {
   color: var(--color-text-muted);
 }
 
+.control-display {
+  font-size: 0.9rem;
+  color: var(--color-accent);
+  font-weight: 500;
+}
+
+.sim-status {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  margin-bottom: 0.5rem;
+  min-height: 1.25em;
+}
+
 .sim-actions {
   display: flex;
   gap: 0.5rem;
