@@ -24,12 +24,12 @@ if (!Matter || !Chart) {
 let getResetParams = () => ({});
 /** Current simulation world state (bodies + refs for graph). Set by simulation createWorld. */
 let currentWorldState = null;
-/** Current simulation module (inclinedPlane, projectileMotion, etc.) */
-let currentSim = inclinedPlane;
+/** Current simulation module (set when a simulation is loaded). */
+let currentSim = null;
 
 const SIMS = [
-  { id: 'inclinedPlane', label: 'Inclined plane', sim: inclinedPlane },
   { id: 'projectileMotion', label: 'Projectile motion', sim: projectileMotion },
+  { id: 'inclinedPlane', label: 'Inclined plane', sim: inclinedPlane },
   { id: 'atwoodMachine', label: 'Atwood machine', sim: atwoodMachine },
   { id: 'atwoodIncline', label: 'Atwood on incline', sim: atwoodIncline },
 ];
@@ -60,7 +60,7 @@ function initSimulationCanvas() {
   const runner = createRunner(engine, render, {
     onReset(engine) {
       Matter.World.clear(engine.world);
-      if (typeof getResetParams === 'function') {
+      if (currentSim && typeof getResetParams === 'function') {
         currentWorldState = currentSim.createWorld(engine, getResetParams());
       }
     },
@@ -72,9 +72,10 @@ function initSimulationCanvas() {
 }
 
 /**
- * Initialize control panel and graph for the current simulation (inclined plane).
+ * Initialize control panel and graph for the current simulation.
+ * @param {string} [initialSimId] - If provided (e.g. from launcher), load this simulation first.
  */
-function initControlsAndGraph(engine, runner) {
+function initControlsAndGraph(engine, runner, initialSimId) {
   const panelEl = document.getElementById('controls-panel');
   const graphCanvas = document.getElementById('graph-canvas');
   const velocityGraphCanvas = document.getElementById('graph-canvas-velocity');
@@ -244,12 +245,12 @@ function initControlsAndGraph(engine, runner) {
   // Populate simulation selector.
   if (simSelect) {
     simSelect.innerHTML = SIMS.map((s) => `<option value="${s.id}">${s.label}</option>`).join('');
-    simSelect.value = SIMS[0].id;
+    simSelect.value = initialSimId ?? SIMS[0].id;
     simSelect.addEventListener('change', () => loadSimulation(simSelect.value));
   }
 
-  // Load default simulation on startup.
-  loadSimulation(simSelect?.value ?? SIMS[0].id);
+  // Load the chosen simulation (from launcher or default).
+  loadSimulation(initialSimId ?? simSelect?.value ?? SIMS[0].id);
 
   // Overlay: draw origin "0" and positive-direction arrow; use live control values for origin and direction
   const overlayCanvas = document.getElementById('sim-canvas-overlay');
@@ -375,11 +376,40 @@ function wireButtons(runner, controlsResult) {
   updateRunButtonLabel();
 }
 
-// Run on load
-const sim = initSimulationCanvas();
-if (sim?.engine && sim?.runner) {
-  const controlsResult = initControlsAndGraph(sim.engine, sim.runner);
-  wireButtons(sim.runner, controlsResult);
+// Launcher: show simulation cards; init app only when user picks one.
+const launcher = document.getElementById('launcher');
+const launcherCards = document.getElementById('launcher-cards');
+const appSimView = document.getElementById('app-sim-view');
+
+let simInited = false;
+let simEngine = null;
+let simRunner = null;
+let simControlsResult = null;
+
+function initAndShowSim(simId) {
+  if (!simInited) {
+    const sim = initSimulationCanvas();
+    if (!sim?.engine || !sim?.runner) return;
+    simEngine = sim.engine;
+    simRunner = sim.runner;
+    simControlsResult = initControlsAndGraph(sim.engine, sim.runner, simId);
+    wireButtons(sim.runner, simControlsResult);
+    simInited = true;
+  }
+  if (launcher) launcher.hidden = true;
+  if (appSimView) appSimView.hidden = false;
+}
+
+if (launcherCards) {
+  SIMS.forEach((entry) => {
+    const card = document.createElement('button');
+    card.type = 'button';
+    card.className = 'launcher-card';
+    card.textContent = entry.label;
+    card.setAttribute('data-sim-id', entry.id);
+    card.addEventListener('click', () => initAndShowSim(entry.id));
+    launcherCards.appendChild(card);
+  });
 }
 
 // Export for later use by simulations

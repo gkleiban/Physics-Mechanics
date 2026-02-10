@@ -13,49 +13,56 @@
   </header>
 
   <main class="app-main">
-    <section class="simulation-section" aria-label="Simulation view">
-      <div class="canvas-container">
-        <canvas id="sim-canvas" width="800" height="500" aria-label="Physics simulation canvas"></canvas>
-        <canvas id="sim-canvas-overlay" width="800" height="500" class="canvas-overlay" aria-hidden="true"></canvas>
+    <section class="launcher" id="launcher" aria-label="Choose a simulation">
+      <h2 class="launcher-title">Choose a simulation</h2>
+      <p class="launcher-description">Select one to open the simulator with controls and graphs.</p>
+      <div class="launcher-cards" id="launcher-cards">
+        <!-- Simulation cards injected by JS -->
       </div>
     </section>
 
-    <aside class="controls-section" aria-label="Simulation controls">
-      <h2>Controls</h2>
-      <div class="simulation-picker">
-        <label for="simulation-select" class="control-label">Simulation</label>
-        <select id="simulation-select" aria-label="Select simulation"></select>
-      </div>
-      <div id="controls-panel" class="controls-panel">
-        <!-- Controls injected by JS per simulation -->
-        <p class="controls-placeholder">Select a simulation to view controls.</p>
-      </div>
-      <div id="sim-status" class="sim-status" aria-live="polite"></div>
-      <div class="sim-actions">
-        <button type="button" id="btn-run" aria-label="Run simulation">Run</button>
-        <button type="button" id="btn-reset" aria-label="Reset simulation">Reset</button>
-        <button type="button" id="btn-step" aria-label="Advance one frame">Step</button>
-      </div>
-    </aside>
+    <div class="app-sim-view" id="app-sim-view" hidden aria-label="Simulation view">
+      <section class="simulation-section" aria-label="Simulation canvas">
+        <div class="canvas-container">
+          <canvas id="sim-canvas" width="800" height="500" aria-label="Physics simulation canvas"></canvas>
+          <canvas id="sim-canvas-overlay" width="800" height="500" class="canvas-overlay" aria-hidden="true"></canvas>
+        </div>
+      </section>
 
-    <section class="graph-section" aria-label="Real-time graphs">
-      <h2>Graphs</h2>
-      <div class="graph-container">
-        <canvas id="graph-canvas" aria-label="Real-time data graph"></canvas>
-      </div>
-      <div class="graph-container">
-        <canvas id="graph-canvas-velocity" aria-label="Velocity vs time graph"></canvas>
-      </div>
-      <h2>Data</h2>
-      <div class="data-table-container" aria-label="Simulation data table">
-        <table class="data-table" id="data-table">
-          <thead id="data-table-head"></thead>
-          <tbody id="data-table-body">
-            <!-- Rows appended by JS while sim runs -->
-          </tbody>
-        </table>
-      </div>
-    </section>
+      <aside class="controls-section" aria-label="Simulation controls">
+        <h2>Controls</h2>
+        <div class="simulation-picker">
+          <label for="simulation-select" class="control-label">Simulation</label>
+          <select id="simulation-select" aria-label="Select simulation"></select>
+        </div>
+        <div id="controls-panel" class="controls-panel">
+          <p class="controls-placeholder">Select a simulation to view controls.</p>
+        </div>
+        <div id="sim-status" class="sim-status" aria-live="polite"></div>
+        <div class="sim-actions">
+          <button type="button" id="btn-run" aria-label="Run simulation">Run</button>
+          <button type="button" id="btn-reset" aria-label="Reset simulation">Reset</button>
+          <button type="button" id="btn-step" aria-label="Advance one frame">Step</button>
+        </div>
+      </aside>
+
+      <section class="graph-section" aria-label="Real-time graphs">
+        <h2>Graphs</h2>
+        <div class="graph-container">
+          <canvas id="graph-canvas" aria-label="Real-time data graph"></canvas>
+        </div>
+        <div class="graph-container">
+          <canvas id="graph-canvas-velocity" aria-label="Velocity vs time graph"></canvas>
+        </div>
+        <h2>Data</h2>
+        <div class="data-table-container" aria-label="Simulation data table">
+          <table class="data-table" id="data-table">
+            <thead id="data-table-head"></thead>
+            <tbody id="data-table-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
   </main>
 
   <footer class="app-footer">

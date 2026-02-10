@@ -51,6 +51,72 @@ body {
 
 .app-main {
   flex: 1;
+  padding: 1rem;
+  max-width: 1400px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* Launcher (home) view — shown until user picks a simulation */
+.launcher {
+  max-width: 640px;
+  margin: 0 auto;
+}
+
+.launcher-title {
+  margin: 0 0 0.25rem 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.launcher-description {
+  margin: 0 0 1.5rem 0;
+  font-size: 0.95rem;
+  color: var(--color-text-muted);
+}
+
+.launcher-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.launcher-card {
+  display: block;
+  width: 100%;
+  padding: 1.25rem 1rem;
+  font-size: 1rem;
+  font-family: inherit;
+  font-weight: 500;
+  color: var(--color-text);
+  text-align: left;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.launcher-card:hover {
+  background: #2d323c;
+  border-color: var(--color-accent);
+}
+
+.launcher-card:focus {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+/* Simulation view — canvas, controls, graphs (hidden until a sim is chosen) */
+.app-sim-view[hidden] {
+  display: none !important;
+}
+
+.app-sim-view:not([hidden]) {
   display: grid;
   grid-template-columns: 1fr 280px;
   grid-template-rows: auto 1fr;
@@ -58,14 +124,10 @@ body {
     "simulation controls"
     "graph      controls";
   gap: 1rem;
-  padding: 1rem;
-  max-width: 1400px;
-  margin: 0 auto;
-  width: 100%;
 }
 
 @media (max-width: 900px) {
-  .app-main {
+  .app-sim-view:not([hidden]) {
     grid-template-columns: 1fr;
     grid-template-rows: auto auto auto;
     grid-template-areas:
