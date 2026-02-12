@@ -48,11 +48,19 @@
 
       <section class="graph-section" aria-label="Real-time graphs">
         <h2>Graphs</h2>
-        <div class="graph-container">
-          <canvas id="graph-canvas" aria-label="Real-time data graph"></canvas>
-        </div>
-        <div class="graph-container">
-          <canvas id="graph-canvas-velocity" aria-label="Velocity vs time graph"></canvas>
+        <div class="graph-grid">
+          <div class="graph-container">
+            <canvas id="graph-canvas" aria-label="Real-time data graph"></canvas>
+          </div>
+          <div class="graph-container">
+            <canvas id="graph-canvas-velocity" aria-label="Velocity vs time graph"></canvas>
+          </div>
+          <div class="graph-container" id="graph-container-3">
+            <canvas id="graph-canvas-3" aria-label="Graph 3"></canvas>
+          </div>
+          <div class="graph-container" id="graph-container-4">
+            <canvas id="graph-canvas-4" aria-label="Graph 4"></canvas>
+          </div>
         </div>
         <h2>Data</h2>
         <div class="data-table-container" aria-label="Simulation data table">

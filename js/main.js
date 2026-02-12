@@ -35,11 +35,53 @@ const SIMS = [
 ];
 
 /**
+ * Resize simulation canvas and overlay to fill the container.
+ * Updates Matter.js render bounds. Caller should reset the simulation after resize.
+ */
+function resizeSimulationCanvas(render) {
+  const container = document.querySelector('.canvas-container');
+  const canvas = document.getElementById('sim-canvas');
+  const overlay = document.getElementById('sim-canvas-overlay');
+  if (!container || !canvas || !render) return;
+
+  let w = container.clientWidth || 800;
+  let h = container.clientHeight || 500;
+  if (w < 100 || h < 100) return;
+
+  if (canvas.width !== w || canvas.height !== h) {
+    canvas.width = w;
+    canvas.height = h;
+    if (overlay) {
+      overlay.width = w;
+      overlay.height = h;
+    }
+    if (render.bounds) {
+      render.bounds.min.x = 0;
+      render.bounds.min.y = 0;
+      render.bounds.max.x = w;
+      render.bounds.max.y = h;
+    }
+  }
+}
+
+/**
  * Initialize the simulation canvas, engine, render, and runner.
  */
 function initSimulationCanvas() {
   const canvas = document.getElementById('sim-canvas');
+  const container = document.querySelector('.canvas-container');
   if (!canvas) return null;
+
+  const w = container?.clientWidth || canvas.width || 800;
+  const h = container?.clientHeight || canvas.height || 500;
+  canvas.width = w;
+  canvas.height = h;
+
+  const overlay = document.getElementById('sim-canvas-overlay');
+  if (overlay) {
+    overlay.width = w;
+    overlay.height = h;
+  }
 
   const engine = Matter.Engine.create({
     enableSleeping: false,
@@ -50,8 +92,8 @@ function initSimulationCanvas() {
     canvas,
     engine,
     options: {
-      width: canvas.width,
-      height: canvas.height,
+      width: w,
+      height: h,
       wireframes: false,
       background: '#252830',
     },
@@ -68,6 +110,14 @@ function initSimulationCanvas() {
   });
   runner.start();
 
+  if (container && typeof ResizeObserver !== 'undefined') {
+    const ro = new ResizeObserver(() => {
+      resizeSimulationCanvas(render);
+      if (runner.reset) runner.reset();
+    });
+    ro.observe(container);
+  }
+
   return { engine, render, runner };
 }
 
@@ -79,11 +129,17 @@ function initControlsAndGraph(engine, runner, initialSimId) {
   const panelEl = document.getElementById('controls-panel');
   const graphCanvas = document.getElementById('graph-canvas');
   const velocityGraphCanvas = document.getElementById('graph-canvas-velocity');
+  const graphCanvas3 = document.getElementById('graph-canvas-3');
+  const graphCanvas4 = document.getElementById('graph-canvas-4');
+  const graphContainer3 = document.getElementById('graph-container-3');
+  const graphContainer4 = document.getElementById('graph-container-4');
   const tableHead = document.getElementById('data-table-head');
   const tableBody = document.getElementById('data-table-body');
   const simSelect = document.getElementById('simulation-select');
   const statusEl = document.getElementById('sim-status');
   if (!panelEl || !graphCanvas) return null;
+
+  const graphCanvases = [graphCanvas, velocityGraphCanvas, graphCanvas3, graphCanvas4];
 
   function setSimStatus(text) {
     if (statusEl) statusEl.textContent = text;
@@ -91,9 +147,8 @@ function initControlsAndGraph(engine, runner, initialSimId) {
 
   const baseReset = runner.reset.bind(runner);
 
-  // These are referenced by the control onChange handler (assigned below).
-  let graphManager = null;
-  let velocityGraphManager = null;
+  /** @type {ReturnType<typeof createGraphManager>[]} */
+  let graphManagers = [];
   /** @type {ReturnType<typeof createControlPanel> | null} */
   let controlPanel = null;
   /** @type {{ key: string, label: string, digits?: number }[]} */
@@ -138,8 +193,7 @@ function initControlsAndGraph(engine, runner, initialSimId) {
     currentSim.setTime(currentWorldState, 0);
 
     const sample = currentSim.getGraphSample(currentWorldState);
-    graphManager?.appendPoint(0, sample);
-    velocityGraphManager?.appendPoint(0, sample);
+    graphManagers.forEach((gm) => gm.appendPoint(0, sample));
 
     if (tableBody) {
       const kin = currentSim.getKinematicsAtTime(currentWorldState, 0);
@@ -167,8 +221,7 @@ function initControlsAndGraph(engine, runner, initialSimId) {
     }
 
     // Live-updating parameters that affect initial condition and/or coordinate definition:
-    if (graphManager) graphManager.clear();
-    if (velocityGraphManager) velocityGraphManager.clear();
+    graphManagers.forEach((gm) => gm.clear());
     simTime = 0;
     lastSampleMs = 0;
     nextSampleMs = 100;
@@ -186,23 +239,39 @@ function initControlsAndGraph(engine, runner, initialSimId) {
   }
 
   function buildGraphsForSim(sim) {
-    if (graphManager?.chart) graphManager.chart.destroy();
-    if (velocityGraphManager?.chart) velocityGraphManager.chart.destroy();
+    graphManagers.forEach((gm) => gm?.chart?.destroy());
+    graphManagers = [];
 
-    graphManager = createGraphManager(graphCanvas, {
-      xLabel: 'Time (s)',
-      yLabel: 'Position (m)',
-      datasets: sim.graphDatasetDefs,
-      maxPoints: 400,
-    });
-
-    if (velocityGraphCanvas) {
-      velocityGraphManager = createGraphManager(velocityGraphCanvas, {
+    if (sim.graphDefs) {
+      const defs = sim.graphDefs;
+      for (let i = 0; i < defs.length && i < graphCanvases.length; i++) {
+        const canvas = graphCanvases[i];
+        if (canvas) {
+          graphManagers.push(createGraphManager(canvas, {
+            ...defs[i],
+            maxPoints: 400,
+          }));
+        }
+      }
+      if (graphContainer3) graphContainer3.hidden = defs.length < 3;
+      if (graphContainer4) graphContainer4.hidden = defs.length < 4;
+    } else {
+      graphManagers.push(createGraphManager(graphCanvas, {
         xLabel: 'Time (s)',
-        yLabel: 'Velocity (m/s)',
-        datasets: sim.velocityGraphDatasetDefs,
+        yLabel: 'Position (m)',
+        datasets: sim.graphDatasetDefs,
         maxPoints: 400,
-      });
+      }));
+      if (velocityGraphCanvas) {
+        graphManagers.push(createGraphManager(velocityGraphCanvas, {
+          xLabel: 'Time (s)',
+          yLabel: 'Velocity (m/s)',
+          datasets: sim.velocityGraphDatasetDefs,
+          maxPoints: 400,
+        }));
+      }
+      if (graphContainer3) graphContainer3.hidden = true;
+      if (graphContainer4) graphContainer4.hidden = true;
     }
   }
 
@@ -296,8 +365,7 @@ function initControlsAndGraph(engine, runner, initialSimId) {
         }
       }
       const sample = currentSim.getGraphSample(currentWorldState);
-      graphManager.appendPoint(tSec, sample);
-      velocityGraphManager?.appendPoint(tSec, sample);
+      graphManagers.forEach((gm) => gm.appendPoint(tSec, sample));
 
       if (tableBody) {
         // Sample at exact multiples of SAMPLE_EVERY_MS for easy theory comparison (0.100, 0.200, ...).
@@ -320,8 +388,7 @@ function initControlsAndGraph(engine, runner, initialSimId) {
   const originalReset = baseReset;
   runner.reset = () => {
     setSimStatus('');
-    graphManager.clear();
-    velocityGraphManager?.clear();
+    graphManagers.forEach((gm) => gm.clear());
     simTime = 0;
     lastSampleMs = 0;
     nextSampleMs = SAMPLE_EVERY_MS;
@@ -332,7 +399,7 @@ function initControlsAndGraph(engine, runner, initialSimId) {
 
   return {
     controlPanel,
-    graphManager,
+    graphManager: graphManagers[0] ?? null,
     setRunButtonUpdater: (fn) => { runButtonUpdater = fn; },
     setStepping: (v) => { isStepping = v; },
     setSimStatus,

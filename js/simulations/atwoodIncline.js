@@ -35,6 +35,17 @@ function numOr(value, fallback) {
 }
 
 export const controlDefs = [
+  { id: 'originPosition', label: 'Origin position along ramp', type: 'range', min: 0, max: 100, step: 5, value: 0, unit: '%' },
+  {
+    id: 'positiveDirection',
+    label: 'Positive direction',
+    type: 'select',
+    value: 'downRamp',
+    options: [
+      { value: 'downRamp', label: 'Down the ramp' },
+      { value: 'upRamp', label: 'Up the ramp' },
+    ],
+  },
   { id: 'angle', label: 'Incline angle α', type: 'range', min: 0, max: 90, step: 1, value: 30, unit: '°' },
   { id: 'massIncline', label: 'Mass on ramp (m₁)', type: 'range', min: 0.1, max: 10, step: 0.1, value: 3, unit: ' kg' },
   { id: 'massHanging', label: 'Hanging mass (m₂)', type: 'range', min: 0.1, max: 10, step: 0.1, value: 1, unit: ' kg' },
@@ -54,17 +65,6 @@ export const controlDefs = [
       return `a = ${a.toFixed(3)} m/s², T = ${T.toFixed(3)} N`;
     },
   },
-  {
-    id: 'positiveDirection',
-    label: 'Positive direction',
-    type: 'select',
-    value: 'downRamp',
-    options: [
-      { value: 'downRamp', label: 'Down the ramp' },
-      { value: 'upRamp', label: 'Up the ramp' },
-    ],
-  },
-  { id: 'originPosition', label: 'Origin position along ramp', type: 'range', min: 0, max: 100, step: 5, value: 0, unit: '%' },
   {
     id: 's0',
     label: 'Initial position s₀',

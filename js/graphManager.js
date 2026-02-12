@@ -31,6 +31,8 @@ export function createGraphManager(canvas, config) {
   const ctx = canvas.getContext('2d');
   if (!ctx || !Chart) return { appendPoint: () => {}, clear: () => {}, setYRange: () => {} };
 
+  const dualAxis = datasetDefs.length >= 2;
+
   const chartDatasets = datasetDefs.map((def, i) => ({
     id: def.id,
     label: def.label + (def.unit ? ` (${def.unit})` : ''),
@@ -41,7 +43,52 @@ export function createGraphManager(canvas, config) {
     pointRadius: 0,
     tension: 0,
     fill: false,
+    ...(dualAxis && { yAxisID: i === 0 ? 'y' : 'y1' }),
   }));
+
+  const zeroLineColor = 'rgba(150, 150, 150, 0.8)';
+  const baseYScale = {
+    type: 'linear',
+    beginAtZero: true,
+    grid: {
+      color: (ctx) => (ctx.tick.value === 0 ? zeroLineColor : undefined),
+      lineWidth: (ctx) => (ctx.tick.value === 0 ? 1.5 : 1),
+    },
+  };
+
+  const axisLabelFont = { size: 15 };
+  const scales = {
+    x: {
+      title: { display: true, text: xLabel, font: axisLabelFont },
+      type: 'linear',
+      min: 0,
+      position: 'bottom',
+      ticks: { font: { size: 13 } },
+    },
+    y: {
+      ...baseYScale,
+      title: {
+        display: true,
+        text: dualAxis ? (datasetDefs[0].label + (datasetDefs[0].unit ? ` (${datasetDefs[0].unit})` : '')) : yLabel,
+        font: axisLabelFont,
+      },
+      position: dualAxis ? 'left' : undefined,
+      ticks: { font: { size: 13 } },
+    },
+    ...(dualAxis && {
+      y1: {
+        ...baseYScale,
+        title: {
+          display: true,
+          text: datasetDefs[1].label + (datasetDefs[1].unit ? ` (${datasetDefs[1].unit})` : ''),
+          font: axisLabelFont,
+        },
+        position: 'right',
+        grid: { drawOnChartArea: false },
+        ticks: { font: { size: 13 } },
+      },
+    }),
+  };
 
   const chart = new Chart(ctx, {
     type: 'line',
@@ -54,20 +101,13 @@ export function createGraphManager(canvas, config) {
       animation: false,
       interaction: { intersect: false, mode: 'index' },
       plugins: {
-        legend: { display: true, position: 'top' },
-      },
-      scales: {
-        x: {
-          title: { display: true, text: xLabel },
-          type: 'linear',
-          min: 0,
-        },
-        y: {
-          title: { display: true, text: yLabel },
-          type: 'linear',
-          beginAtZero: false,
+        legend: {
+          display: true,
+          position: 'top',
+          labels: { font: { size: 14 } },
         },
       },
+      scales,
     },
   });
 

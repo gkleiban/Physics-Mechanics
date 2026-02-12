@@ -43,6 +43,17 @@ function computeS0MetersFromControlValues(values) {
 }
 
 export const controlDefs = [
+  { id: 'originPosition', label: 'Origin position along ramp', type: 'range', min: 0, max: 100, step: 5, value: 0, unit: '%' },
+  {
+    id: 'positiveDirection',
+    label: 'Positive direction',
+    type: 'select',
+    value: 'down',
+    options: [
+      { value: 'down', label: 'Down the ramp' },
+      { value: 'up', label: 'Up the ramp' },
+    ],
+  },
   { id: 'angle', label: 'Incline angle', type: 'range', min: 0, max: 90, step: 1, value: 20, unit: '°' },
   { id: 'mass', label: 'Mass', type: 'number', min: 0.5, max: 20, step: 0.5, value: 2, unit: ' kg' },
   { id: 'friction', label: 'Friction (μ)', type: 'range', min: 0, max: 0.8, step: 0.05, value: 0, unit: '' },
@@ -71,17 +82,6 @@ export const controlDefs = [
       const s0 = computeS0MetersFromControlValues(getValues());
       return `s = ${s0.toFixed(3)} m`;
     },
-  },
-  { id: 'originPosition', label: 'Origin position along ramp', type: 'range', min: 0, max: 100, step: 5, value: 0, unit: '%' },
-  {
-    id: 'positiveDirection',
-    label: 'Positive direction',
-    type: 'select',
-    value: 'down',
-    options: [
-      { value: 'down', label: 'Down the ramp' },
-      { value: 'up', label: 'Up the ramp' },
-    ],
   },
 ];
 
@@ -340,6 +340,8 @@ function computeAxisKinematicsAtTime(worldState, tSeconds) {
 export function applyLiveParams(worldState, controlValues) {
   if (!worldState?.refPoint || !worldState?.slopeDir || !worldState?.normal || !worldState?.box) return;
 
+  delete worldState._canvasEndTime;
+
   const originPosition = numOr(controlValues?.originPosition, 0);
   const positiveDirection = controlValues?.positiveDirection === 'up' ? 'up' : 'down';
   const friction = numOr(controlValues?.friction, 0);
@@ -386,6 +388,57 @@ export function applyLiveParams(worldState, controlValues) {
 }
 
 /**
+ * Compute block center position in canvas pixels at time t.
+ */
+function getBlockPositionAtTime(worldState, tSeconds) {
+  const { s } = computeAxisKinematicsAtTime(worldState, tSeconds);
+  const sPx = s * PX_PER_M;
+  const x = worldState.originPoint.x + sPx * worldState.axisDir.x + (BOX_SIZE / 2 + BOX_CLEARANCE_PX) * worldState.normal.x;
+  const y = worldState.originPoint.y + sPx * worldState.axisDir.y + (BOX_SIZE / 2 + BOX_CLEARANCE_PX) * worldState.normal.y;
+  return { x, y };
+}
+
+/**
+ * Return the time (seconds) when the block center first reaches a canvas boundary, or Infinity.
+ * Checks left, right, and bottom (no top boundary). Result is cached per world state.
+ */
+export function getSimulationEndTime(worldState) {
+  if (!worldState?.originPoint || !worldState?.axisDir || !worldState?.box) return Infinity;
+
+  if (worldState._canvasEndTime !== undefined) return worldState._canvasEndTime;
+
+  const canvas = document.getElementById('sim-canvas');
+  const w = canvas?.width ?? 800;
+  const h = canvas?.height ?? 500;
+
+  const R = BOX_SIZE / 2;
+  const pos0 = getBlockPositionAtTime(worldState, 0);
+  if (pos0.x < R || pos0.x > w - R || pos0.y > h - R) {
+    worldState._canvasEndTime = 0;
+    return 0;
+  }
+
+  const dt = 0.02;
+  let t = dt;
+  const tMax = 60;
+
+  while (t <= tMax) {
+    const pos = getBlockPositionAtTime(worldState, t);
+    if (pos.x < R || pos.x > w - R || pos.y > h - R) {
+      worldState._canvasEndTime = t;
+      return t;
+    }
+    t += dt;
+  }
+  worldState._canvasEndTime = Infinity;
+  return Infinity;
+}
+
+export function getSimulationEndReason(_worldState) {
+  return 'Block reached canvas boundary';
+}
+
+/**
  * Sample graph values from current world state.
  * Returns position along slope in meters (relative to origin; sign follows positive direction).
  */
@@ -411,6 +464,7 @@ export function advance(worldState, deltaMs) {
 /**
  * Sets the kinematics model to an absolute time (seconds) and updates the box pose.
  * This avoids numerical drift from incremental summation when verifying against theory.
+ * Clamps to canvas boundary when reached.
  * @param {*} worldState
  * @param {number} tSeconds
  */
@@ -418,7 +472,9 @@ export function setTime(worldState, tSeconds) {
   const kin = worldState?.kinematics;
   if (!kin || !worldState.box) return;
 
-  const { t, s, v, a } = computeAxisKinematicsAtTime(worldState, tSeconds);
+  const endTime = getSimulationEndTime(worldState);
+  const tClamp = Number.isFinite(endTime) ? Math.min(tSeconds, endTime) : tSeconds;
+  const { t, s, v, a } = computeAxisKinematicsAtTime(worldState, tClamp);
   kin.t = t;
   kin.s = s;
   kin.v = v;

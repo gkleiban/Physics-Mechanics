@@ -33,6 +33,8 @@ function numOr(value, fallback) {
 }
 
 export const controlDefs = [
+  { id: 'originX', label: 'Origin x position (canvas)', type: 'range', min: 0, max: 100, step: 1, value: 20, unit: '%' },
+  { id: 'originY', label: 'Origin y position (canvas)', type: 'range', min: 0, max: 100, step: 1, value: 70, unit: '%' },
   {
     id: 'positiveX',
     label: 'Positive x direction',
@@ -53,8 +55,6 @@ export const controlDefs = [
       { value: 'down', label: 'Down' },
     ],
   },
-  { id: 'originX', label: 'Origin x position (canvas)', type: 'range', min: 0, max: 100, step: 1, value: 20, unit: '%' },
-  { id: 'originY', label: 'Origin y position (canvas)', type: 'range', min: 0, max: 100, step: 1, value: 70, unit: '%' },
   // Launch angle is in the fixed (traditional) system: 0° = right, 90° = up, CCW. Data uses the user-defined axes above.
   { id: 'launchAngle', label: 'Launch angle (fixed axes)', type: 'range', min: 0, max: 360, step: 1, value: 45, unit: '°' },
   { id: 'initialSpeed', label: 'Initial speed', type: 'range', min: 0, max: 30, step: 0.1, value: 7.5, unit: ' m/s' },
@@ -73,6 +73,14 @@ export const graphDatasetDefs = [
 export const velocityGraphDatasetDefs = [
   { id: 'vx', label: 'vx', unit: 'm/s' },
   { id: 'vy', label: 'vy', unit: 'm/s' },
+];
+
+/** Four separate graphs: x, y, vx, vy (overrides graphDatasetDefs + velocityGraphDatasetDefs when present). */
+export const graphDefs = [
+  { xLabel: 'Time (s)', yLabel: 'x (m)', datasets: [{ id: 'x', label: 'x', unit: 'm' }] },
+  { xLabel: 'Time (s)', yLabel: 'y (m)', datasets: [{ id: 'y', label: 'y', unit: 'm' }] },
+  { xLabel: 'Time (s)', yLabel: 'vx (m/s)', datasets: [{ id: 'vx', label: 'vx', unit: 'm/s' }] },
+  { xLabel: 'Time (s)', yLabel: 'vy (m/s)', datasets: [{ id: 'vy', label: 'vy', unit: 'm/s' }] },
 ];
 
 export const tableColumnDefs = [
@@ -224,11 +232,78 @@ export function applyLiveParams(worldState, controlValues) {
   setTime(worldState, 0);
 }
 
+/**
+ * Return the time (seconds) when the ball center first reaches a canvas boundary, or Infinity.
+ */
+export function getSimulationEndTime(worldState) {
+  const kin = worldState?.kinematics;
+  if (!kin || !worldState.projectile) return Infinity;
+
+  const canvas = document.getElementById('sim-canvas');
+  const w = canvas?.width ?? 800;
+  const h = canvas?.height ?? 500;
+
+  const { originPxX, originPxY, sx, sy } = worldState;
+  const { x0, y0, vx0, vy0, ay } = kin;
+
+  const R = PROJECTILE_RADIUS_PX;
+
+  const xPx0 = originPxX + sx * x0 * PX_PER_M;
+  const yPx0 = originPxY - sy * y0 * PX_PER_M;
+  if (xPx0 < R || xPx0 > w - R || yPx0 > h - R) {
+    return 0;
+  }
+
+  const candidates = [];
+
+  // Left boundary: xPx = R
+  if (Math.abs(vx0) > 1e-10) {
+    const xLeft = (R - originPxX) / (sx * PX_PER_M);
+    const tLeft = (xLeft - x0) / vx0;
+    if (tLeft > 0) candidates.push(tLeft);
+  }
+
+  // Right boundary: xPx = w - R
+  if (Math.abs(vx0) > 1e-10) {
+    const xRight = (w - R - originPxX) / (sx * PX_PER_M);
+    const tRight = (xRight - x0) / vx0;
+    if (tRight > 0) candidates.push(tRight);
+  }
+
+  // Bottom boundary: yPx = h - R  →  yTarget = (originPxY - h + R) / (sy * PX_PER_M)
+  // Quadratic: 0.5*ay*t^2 + vy0*t + (y0 - yTarget) = 0  →  disc = vy0^2 - 2*ay*(y0 - yTarget)
+  if (Math.abs(ay) > 1e-10) {
+    const yTargetBottom = (originPxY - h + R) / (sy * PX_PER_M);
+    const disc = vy0 * vy0 - 2 * ay * (y0 - yTargetBottom);
+    if (disc >= 0) {
+      const sqrtDisc = Math.sqrt(disc);
+      const t1 = (-vy0 + sqrtDisc) / ay;
+      const t2 = (-vy0 - sqrtDisc) / ay;
+      if (t1 > 0) candidates.push(t1);
+      if (t2 > 0) candidates.push(t2);
+    }
+  } else if (Math.abs(vy0) > 1e-10) {
+    const yTargetBottom = (originPxY - h + R) / (sy * PX_PER_M);
+    const tBottom = (yTargetBottom - y0) / vy0;
+    if (tBottom > 0) candidates.push(tBottom);
+  }
+
+  const tMin = candidates.length > 0 ? Math.min(...candidates) : Infinity;
+  return Number.isFinite(tMin) ? tMin : Infinity;
+}
+
+export function getSimulationEndReason(_worldState) {
+  return 'Ball reached canvas boundary';
+}
+
+
 export function setTime(worldState, tSeconds) {
   const kin = worldState?.kinematics;
   if (!kin || !worldState.projectile) return;
 
-  const sample = computeKinematicsAtTime(kin, tSeconds);
+  const endTime = getSimulationEndTime(worldState);
+  const tClamp = Number.isFinite(endTime) ? Math.min(tSeconds, endTime) : tSeconds;
+  const sample = computeKinematicsAtTime(kin, tClamp);
 
   kin.t = sample.t;
   kin.x = sample.x;
@@ -241,7 +316,6 @@ export function setTime(worldState, tSeconds) {
   const xPx = worldState.originPxX + worldState.sx * kin.x * PX_PER_M;
   const yPx = worldState.originPxY - worldState.sy * kin.y * PX_PER_M;
 
-  // Map theory position directly to canvas pixels (may go off-canvas).
   Matter.Body.setPosition(worldState.projectile, { x: xPx, y: yPx });
 }
 
