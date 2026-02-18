@@ -87,6 +87,66 @@ export const rebuildOnChangeIds = ['angle', 'positiveDirection', 'massIncline', 
 
 export const graphDatasetDefs = [{ id: 's', label: 'Position s', unit: 'm' }];
 export const velocityGraphDatasetDefs = [{ id: 'v', label: 'Velocity v', unit: 'm/s' }];
+
+/**
+ * Compute expected graph bounds from control values (for preset axes before simulation runs).
+ * Returns array of { xMin, xMax, yMin, yMax } for position and velocity graphs.
+ */
+export function getGraphBounds(controlValues) {
+  const positiveDirection = controlValues?.positiveDirection === 'upRamp' ? 'upRamp' : 'downRamp';
+  const signPos = getSignPos(positiveDirection);
+  const originPosition = Math.max(0, Math.min(100, numOr(controlValues?.originPosition, 0)));
+  const originDistM = (originPosition / 100) * rampLengthM;
+  const s0ControlMin = getS0ControlMin(originDistM);
+  const s0ControlMax = getS0ControlMax(originDistM);
+  const s0Control = Math.max(s0ControlMin, Math.min(s0ControlMax, numOr(controlValues?.s0, 2.5)));
+  const s0 = signPos * s0Control;
+  const v0 = numOr(controlValues?.v0, 0);
+
+  const m1 = Math.max(MIN_MASS_KG, numOr(controlValues?.massIncline, 3));
+  const m2 = Math.max(MIN_MASS_KG, numOr(controlValues?.massHanging, 1));
+  const g = Math.max(0, numOr(controlValues?.gravity, 9.8));
+  const angleRad = (numOr(controlValues?.angle, 30) * Math.PI) / 180;
+
+  const { a } = computeAccelAndTension(m1, m2, g, angleRad, signPos);
+  const sMax = getSMaxMeters(positiveDirection, originDistM);
+  const sMin = getSMinMeters(positiveDirection, originDistM);
+  const kin = { s0, v0, a };
+
+  const tPos = timeToReach(kin, sMax);
+  const tNeg = timeToReach(kin, sMin);
+  const endTime = Math.min(tPos, tNeg);
+  const T = Number.isFinite(endTime) && endTime > 0 ? endTime : 5;
+
+  const pad = (lo, hi, p = 0.05) => {
+    const d = Math.max(hi - lo, 1e-6) * p;
+    return { min: lo - d, max: hi + d };
+  };
+
+  const sAt0 = s0;
+  const sAtT = s0 + v0 * T + 0.5 * a * T * T;
+  let sMinVal = Math.min(sAt0, sAtT);
+  let sMaxVal = Math.max(sAt0, sAtT);
+  if (Math.abs(a) > 1e-10) {
+    const tVertex = -v0 / a;
+    if (tVertex > 0 && tVertex < T) {
+      const sVertex = s0 + v0 * tVertex + 0.5 * a * tVertex * tVertex;
+      sMinVal = Math.min(sMinVal, sVertex);
+      sMaxVal = Math.max(sMaxVal, sVertex);
+    }
+  }
+  const sRange = pad(sMinVal, sMaxVal);
+
+  const vAt0 = v0;
+  const vAtT = v0 + a * T;
+  const vRange = pad(Math.min(vAt0, vAtT), Math.max(vAt0, vAtT));
+
+  return [
+    { xMin: 0, xMax: T, yMin: sRange.min, yMax: sRange.max },
+    { xMin: 0, xMax: T, yMin: vRange.min, yMax: vRange.max },
+  ];
+}
+
 export const tableColumnDefs = [
   { key: 't', label: 'Time (s)', digits: 3 },
   { key: 's', label: 's (m)', digits: 4 },

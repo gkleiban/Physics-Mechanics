@@ -93,6 +93,88 @@ export const velocityGraphDatasetDefs = [
   { id: 'v', label: 'Velocity along slope', unit: 'm/s' },
 ];
 
+/**
+ * Compute expected graph bounds from control values (for preset axes before simulation runs).
+ * Returns array of { xMin, xMax, yMin, yMax } for position and velocity graphs.
+ */
+export function getGraphBounds(controlValues) {
+  const canvas = document.getElementById('sim-canvas');
+  const w = canvas?.width ?? 800;
+  const h = canvas?.height ?? 500;
+
+  const angleDeg = numOr(controlValues?.angle, 20);
+  const angleRad = (angleDeg * Math.PI) / 180;
+  const originPosition = numOr(controlValues?.originPosition, 0);
+  const positiveDirection = controlValues?.positiveDirection === 'up' ? 'up' : 'down';
+  const friction = numOr(controlValues?.friction, 0);
+  const gravityMps2 = numOr(controlValues?.gravity, 9.8);
+  const initialSpeed = Math.max(0, numOr(controlValues?.initialSpeed, 0));
+  const initialVelocityDirection = controlValues?.initialVelocityDirection === 'up' ? 'up' : 'down';
+
+  const s0 = computeS0MetersFromControlValues({
+    startPosition: controlValues?.startPosition,
+    originPosition,
+    positiveDirection,
+  });
+  const v0 = initialVelocityDirection === positiveDirection ? initialSpeed : -initialSpeed;
+
+  const slopeDirX = Math.cos(angleRad);
+  const slopeDirY = Math.sin(angleRad);
+  const normalX = Math.sin(angleRad);
+  const normalY = -Math.cos(angleRad);
+
+  const slopeCenterX = w / 2;
+  const slopeCenterY = h - 100;
+  const topSurfaceHighEndX = slopeCenterX - (SLOPE_WIDTH / 2) * slopeDirX + (SLOPE_HEIGHT / 2) * normalX;
+  const topSurfaceHighEndY = slopeCenterY - (SLOPE_WIDTH / 2) * slopeDirY + (SLOPE_HEIGHT / 2) * normalY;
+  const originPoint = {
+    x: topSurfaceHighEndX + (originPosition / 100) * SLOPE_WIDTH * slopeDirX,
+    y: topSurfaceHighEndY + (originPosition / 100) * SLOPE_WIDTH * slopeDirY,
+  };
+  const axisDir = positiveDirection === 'down'
+    ? { x: slopeDirX, y: slopeDirY }
+    : { x: -slopeDirX, y: -slopeDirY };
+
+  const kinematics = { t: 0, s0, v0, theta: angleRad, g: gravityMps2, mu: friction, s: s0, v: v0, a: 0 };
+  const worldState = {
+    originPoint,
+    axisDir,
+    box: {},
+    kinematics,
+    positiveDirection,
+    normal: { x: normalX, y: normalY },
+  };
+
+  const endTime = getSimulationEndTime(worldState);
+  const T = Number.isFinite(endTime) && endTime > 0 ? endTime : 10;
+
+  const pad = (lo, hi, p = 0.05) => {
+    const d = Math.max(hi - lo, 1e-6) * p;
+    return { min: lo - d, max: hi + d };
+  };
+
+  let sMin = s0;
+  let sMax = s0;
+  let vMin = v0;
+  let vMax = v0;
+  const steps = 50;
+  for (let i = 0; i <= steps; i++) {
+    const t = (i / steps) * T;
+    const { s, v } = computeAxisKinematicsAtTime(worldState, t);
+    sMin = Math.min(sMin, s);
+    sMax = Math.max(sMax, s);
+    vMin = Math.min(vMin, v);
+    vMax = Math.max(vMax, v);
+  }
+  const sRange = pad(sMin, sMax);
+  const vRange = pad(vMin, vMax);
+
+  return [
+    { xMin: 0, xMax: T, yMin: sRange.min, yMax: sRange.max },
+    { xMin: 0, xMax: T, yMin: vRange.min, yMax: vRange.max },
+  ];
+}
+
 export const tableColumnDefs = [
   { key: 't', label: 'Time (s)', digits: 3 },
   { key: 's', label: 'Position (m)', digits: 4 },

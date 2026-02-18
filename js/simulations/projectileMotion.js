@@ -83,6 +83,90 @@ export const graphDefs = [
   { xLabel: 'Time (s)', yLabel: 'vy (m/s)', datasets: [{ id: 'vy', label: 'vy', unit: 'm/s' }] },
 ];
 
+/**
+ * Compute expected graph bounds from control values (for preset axes before simulation runs).
+ * Returns array of { xMin, xMax, yMin, yMax } for each graph in graphDefs order.
+ */
+export function getGraphBounds(controlValues) {
+  const canvas = document.getElementById('sim-canvas');
+  const w = canvas?.width ?? 800;
+  const h = canvas?.height ?? 500;
+
+  const positiveX = controlValues?.positiveX === 'left' ? 'left' : 'right';
+  const positiveY = controlValues?.positiveY === 'down' ? 'down' : 'up';
+  const sx = getSignX(positiveX);
+  const sy = getSignY(positiveY);
+
+  const originXPercent = numOr(controlValues?.originX, 20);
+  const originYPercent = numOr(controlValues?.originY, 70);
+  const originPxX = (originXPercent / 100) * w;
+  const originPxY = (originYPercent / 100) * h;
+
+  const launchAngleDeg = numOr(controlValues?.launchAngle, 45);
+  const launchAngleRad = (launchAngleDeg * Math.PI) / 180;
+  const speed = Math.max(0, numOr(controlValues?.initialSpeed, 7.5));
+  const g = Math.max(0, numOr(controlValues?.gravity, 9.8));
+
+  const x0 = numOr(controlValues?.ballX0, 0);
+  const y0 = numOr(controlValues?.ballY0, 0);
+
+  const vx0Fixed = speed * Math.cos(launchAngleRad);
+  const vy0Fixed = speed * Math.sin(launchAngleRad);
+  const vx0 = sx * vx0Fixed;
+  const vy0 = sy * vy0Fixed;
+  const ay = -sy * g;
+
+  const kin = { x0, y0, vx0, vy0, ay };
+  const worldState = {
+    originPxX,
+    originPxY,
+    sx,
+    sy,
+    kinematics: kin,
+    projectile: {},
+  };
+
+  const endTime = getSimulationEndTime(worldState);
+  const T = Number.isFinite(endTime) && endTime > 0 ? endTime : 1;
+
+  const pad = (lo, hi, p = 0.05) => {
+    const d = Math.max(hi - lo, 1e-6) * p;
+    return { min: lo - d, max: hi + d };
+  };
+
+  const xAt0 = x0;
+  const xAtT = x0 + vx0 * T;
+  const xRange = pad(Math.min(xAt0, xAtT), Math.max(xAt0, xAtT));
+
+  const yAt0 = y0;
+  const yAtT = y0 + vy0 * T + 0.5 * ay * T * T;
+  let yMin = Math.min(yAt0, yAtT);
+  let yMax = Math.max(yAt0, yAtT);
+  if (Math.abs(ay) > 1e-10) {
+    const tVertex = -vy0 / ay;
+    if (tVertex > 0 && tVertex < T) {
+      const yVertex = y0 + vy0 * tVertex + 0.5 * ay * tVertex * tVertex;
+      yMin = Math.min(yMin, yVertex);
+      yMax = Math.max(yMax, yVertex);
+    }
+  }
+  const yRange = pad(yMin, yMax);
+
+  const vyAt0 = vy0;
+  const vyAtT = vy0 + ay * T;
+  const vyRange = pad(Math.min(vyAt0, vyAtT), Math.max(vyAt0, vyAtT));
+
+  const vxPad = Math.max(Math.abs(vx0) * 0.05, 0.1);
+  const vxRange = { min: vx0 - vxPad, max: vx0 + vxPad };
+
+  return [
+    { xMin: 0, xMax: T, yMin: xRange.min, yMax: xRange.max },
+    { xMin: 0, xMax: T, yMin: yRange.min, yMax: yRange.max },
+    { xMin: 0, xMax: T, yMin: vxRange.min, yMax: vxRange.max },
+    { xMin: 0, xMax: T, yMin: vyRange.min, yMax: vyRange.max },
+  ];
+}
+
 export const tableColumnDefs = [
   { key: 't', label: 'Time (s)', digits: 3 },
   { key: 'x', label: 'x (m)', digits: 4 },

@@ -58,6 +58,57 @@ export const velocityGraphDatasetDefs = [
   { id: 'v', label: 'Velocity v', unit: 'm/s' },
 ];
 
+/**
+ * Compute expected graph bounds from control values (for preset axes before simulation runs).
+ * Returns array of { xMin, xMax, yMin, yMax } for position and velocity graphs.
+ */
+export function getGraphBounds(controlValues) {
+  const positiveDirection = controlValues?.positiveDirection === 'rightDown' ? 'rightDown' : 'leftDown';
+  const signPos = getSignPos(positiveDirection);
+  const m1 = Math.max(MIN_MASS_KG, numOr(controlValues?.massLeft, 2));
+  const m2 = Math.max(MIN_MASS_KG, numOr(controlValues?.massRight, 1));
+  const g = Math.max(0, numOr(controlValues?.gravity, 9.8));
+  const s0 = numOr(controlValues?.s0, 0);
+  const v0 = numOr(controlValues?.v0, 0);
+
+  const { a } = computeAccelAndTension(m1, m2, g, signPos);
+  const sMax = getSMaxMeters();
+  const kin = { s0, v0, a };
+
+  const tPos = timeToReach(kin, sMax);
+  const tNeg = timeToReach(kin, -sMax);
+  const endTime = Math.min(tPos, tNeg);
+  const T = Number.isFinite(endTime) && endTime > 0 ? endTime : 5;
+
+  const pad = (lo, hi, p = 0.05) => {
+    const d = Math.max(hi - lo, 1e-6) * p;
+    return { min: lo - d, max: hi + d };
+  };
+
+  const sAt0 = s0;
+  const sAtT = s0 + v0 * T + 0.5 * a * T * T;
+  let sMin = Math.min(sAt0, sAtT);
+  let sMaxVal = Math.max(sAt0, sAtT);
+  if (Math.abs(a) > 1e-10) {
+    const tVertex = -v0 / a;
+    if (tVertex > 0 && tVertex < T) {
+      const sVertex = s0 + v0 * tVertex + 0.5 * a * tVertex * tVertex;
+      sMin = Math.min(sMin, sVertex);
+      sMaxVal = Math.max(sMaxVal, sVertex);
+    }
+  }
+  const sRange = pad(sMin, sMaxVal);
+
+  const vAt0 = v0;
+  const vAtT = v0 + a * T;
+  const vRange = pad(Math.min(vAt0, vAtT), Math.max(vAt0, vAtT));
+
+  return [
+    { xMin: 0, xMax: T, yMin: sRange.min, yMax: sRange.max },
+    { xMin: 0, xMax: T, yMin: vRange.min, yMax: vRange.max },
+  ];
+}
+
 export const tableColumnDefs = [
   { key: 't', label: 'Time (s)', digits: 3 },
   { key: 's', label: 's (m)', digits: 4 },

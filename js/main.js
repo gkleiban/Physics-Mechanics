@@ -141,6 +141,9 @@ function initControlsAndGraph(engine, runner, initialSimId) {
 
   const graphCanvases = [graphCanvas, velocityGraphCanvas, graphCanvas3, graphCanvas4];
 
+  const GRAPH_SAMPLE_MS = 50; // 20 Hz for graphs - keeps full trace without exceeding maxPoints
+  let nextGraphSampleMs = GRAPH_SAMPLE_MS;
+
   function setSimStatus(text) {
     if (statusEl) statusEl.textContent = text;
   }
@@ -225,6 +228,7 @@ function initControlsAndGraph(engine, runner, initialSimId) {
     simTime = 0;
     lastSampleMs = 0;
     nextSampleMs = 100;
+    nextGraphSampleMs = GRAPH_SAMPLE_MS;
     if (tableBody) tableBody.innerHTML = '';
 
     if (currentWorldState && typeof currentSim.applyLiveParams === 'function') {
@@ -236,6 +240,18 @@ function initControlsAndGraph(engine, runner, initialSimId) {
     }
 
     seedT0();
+    applyGraphBounds();
+  }
+
+  function applyGraphBounds() {
+    if (typeof currentSim?.getGraphBounds !== 'function') return;
+    const bounds = currentSim.getGraphBounds(getValues());
+    if (!Array.isArray(bounds)) return;
+    bounds.forEach((b, i) => {
+      if (graphManagers[i] && typeof graphManagers[i].setBounds === 'function') {
+        graphManagers[i].setBounds(b);
+      }
+    });
   }
 
   function buildGraphsForSim(sim) {
@@ -273,6 +289,7 @@ function initControlsAndGraph(engine, runner, initialSimId) {
       if (graphContainer3) graphContainer3.hidden = true;
       if (graphContainer4) graphContainer4.hidden = true;
     }
+    applyGraphBounds();
   }
 
   function loadSimulation(simId) {
@@ -304,6 +321,7 @@ function initControlsAndGraph(engine, runner, initialSimId) {
     simTime = 0;
     lastSampleMs = 0;
     nextSampleMs = 100;
+    nextGraphSampleMs = GRAPH_SAMPLE_MS;
     if (tableBody) tableBody.innerHTML = '';
 
     baseReset();
@@ -364,8 +382,13 @@ function initControlsAndGraph(engine, runner, initialSimId) {
           setSimStatus(reason ? `Stopped: ${reason}` : '');
         }
       }
-      const sample = currentSim.getGraphSample(currentWorldState);
-      graphManagers.forEach((gm) => gm.appendPoint(tSec, sample));
+      // Throttle graph sampling so we keep the full trace (avoids dropping early points when maxPoints is exceeded)
+      while (simTime >= nextGraphSampleMs) {
+        const t = nextGraphSampleMs / 1000;
+        const kin = currentSim.getKinematicsAtTime(currentWorldState, t);
+        graphManagers.forEach((gm) => gm.appendPoint(t, kin));
+        nextGraphSampleMs += GRAPH_SAMPLE_MS;
+      }
 
       if (tableBody) {
         // Sample at exact multiples of SAMPLE_EVERY_MS for easy theory comparison (0.100, 0.200, ...).
@@ -392,6 +415,7 @@ function initControlsAndGraph(engine, runner, initialSimId) {
     simTime = 0;
     lastSampleMs = 0;
     nextSampleMs = SAMPLE_EVERY_MS;
+    nextGraphSampleMs = GRAPH_SAMPLE_MS;
     if (tableBody) tableBody.innerHTML = '';
     originalReset();
     seedT0();

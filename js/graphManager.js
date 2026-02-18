@@ -24,12 +24,12 @@ const DEFAULT_COLORS = [
 /**
  * @param {HTMLCanvasElement} canvas
  * @param {{ xLabel?: string, yLabel?: string, datasets: DatasetDef[], maxPoints?: number }} config
- * @returns {{ appendPoint: (t: number, values: Record<string, number>) => void, clear: () => void, setYRange: (min?: number, max?: number) => void }}
+ * @returns {{ appendPoint: (t: number, values: Record<string, number>) => void, clear: () => void, setYRange: (min?: number, max?: number) => void, setBounds: (bounds: { xMin?: number, xMax?: number, yMin?: number, yMax?: number }) => void }}
  */
 export function createGraphManager(canvas, config) {
   const { xLabel = 'Time (s)', yLabel = 'Value', datasets: datasetDefs, maxPoints = 500 } = config;
   const ctx = canvas.getContext('2d');
-  if (!ctx || !Chart) return { appendPoint: () => {}, clear: () => {}, setYRange: () => {} };
+  if (!ctx || !Chart) return { appendPoint: () => {}, clear: () => {}, setYRange: () => {}, setBounds: () => {} };
 
   const dualAxis = datasetDefs.length >= 2;
 
@@ -49,7 +49,7 @@ export function createGraphManager(canvas, config) {
   const zeroLineColor = 'rgba(150, 150, 150, 0.8)';
   const baseYScale = {
     type: 'linear',
-    beginAtZero: true,
+    beginAtZero: false,
     grid: {
       color: (ctx) => (ctx.tick.value === 0 ? zeroLineColor : undefined),
       lineWidth: (ctx) => (ctx.tick.value === 0 ? 1.5 : 1),
@@ -62,6 +62,7 @@ export function createGraphManager(canvas, config) {
       title: { display: true, text: xLabel, font: axisLabelFont },
       type: 'linear',
       min: 0,
+      max: 1,
       position: 'bottom',
       ticks: { font: { size: 13 } },
     },
@@ -139,5 +140,24 @@ export function createGraphManager(canvas, config) {
     }
   }
 
-  return { appendPoint, clear, setYRange, chart };
+  function setBounds(bounds) {
+    const xOpts = chart.options.scales?.x;
+    const yOpts = chart.options.scales?.y;
+    const y1Opts = chart.options.scales?.y1;
+    if (xOpts) {
+      if (bounds.xMin != null) xOpts.min = bounds.xMin;
+      if (bounds.xMax != null) xOpts.max = bounds.xMax;
+    }
+    if (yOpts) {
+      if (bounds.yMin != null) yOpts.min = bounds.yMin;
+      if (bounds.yMax != null) yOpts.max = bounds.yMax;
+    }
+    if (y1Opts) {
+      if (bounds.y1Min != null) y1Opts.min = bounds.y1Min;
+      if (bounds.y1Max != null) y1Opts.max = bounds.y1Max;
+    }
+    chart.update('none');
+  }
+
+  return { appendPoint, clear, setYRange, setBounds, chart };
 }
